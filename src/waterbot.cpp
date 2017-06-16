@@ -44,8 +44,9 @@ const char* EVENT_DATA = "waterbot/data";
 retained unsigned long pulseCount = 0;  // TODO: cache in EEPROM
 
 retained unsigned long lastPublishTime = 0;
-retained unsigned long lastPublishCount = 0;
+retained unsigned long lastPublishedPulseCount = 0;
 retained unsigned long nextPublishInterval = 0; // secs after lastPublishTime
+retained unsigned long publishCount = 0; // number of publishes since power up
 
 
 
@@ -70,19 +71,20 @@ void publishData() {
     unsigned long now = Time.now();
     unsigned long thisPulseCount = pulseCount;  // capture in case we're interrupted
     unsigned long usageInterval = now - lastPublishTime;
-    unsigned long usage = thisPulseCount - lastPublishCount;
+    unsigned long usage = thisPulseCount - lastPublishedPulseCount;
     int rssi = WiFi.RSSI();  // report whenever we're publishing
     float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
     float stateOfCharge = batteryMonitor.getSoC();
 
     // format all our vars into JSON; note Particle allows 255 chars max
     String data = String::format(
-        "{\"current\": %u, \"last\": %u, \"usage\": %u, \"interval\": %u, \"signal\": %d, \"battV\": %0.1f, \"battPct\": %0.1f}",
-        thisPulseCount, lastPublishCount, usage, usageInterval,
-        rssi, cellVoltage, stateOfCharge);
+        "{\"current\": %u, \"last\": %u, \"usage\": %u, \"interval\": %u, \"serial\": %u, \"signal\": %d, \"battV\": %0.2f, \"battPct\": %0.2f}",
+        thisPulseCount, lastPublishedPulseCount, usage, usageInterval,
+        publishCount, rssi, cellVoltage, stateOfCharge);
     if (Particle.publish(EVENT_DATA, data)) {
         lastPublishTime = now;
-        lastPublishCount = thisPulseCount;
+        lastPublishedPulseCount = thisPulseCount;
+        publishCount += 1;
         if (pulseCount == thisPulseCount) {
             // if there's no earlier event, reconnect at the heartbeat interval
             nextPublishInterval = PUBLISH_HEARTBEAT_INTERVAL;
@@ -134,7 +136,7 @@ void disconnectCleanly() {
 
 void setup() {
     pinMode(PIN_LED_SIGNAL, OUTPUT);
-    digitalWrite(PIN_LED_SIGNAL, (pulseCount > lastPublishCount) ? HIGH : LOW);
+    digitalWrite(PIN_LED_SIGNAL, (pulseCount > lastPublishedPulseCount) ? HIGH : LOW);
 
     pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);  // system.sleep sets this for WKP
     attachInterrupt(PIN_PULSE_SWITCH, checkForPulse, RISING);  // deep sleep requires rising edge
