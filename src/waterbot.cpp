@@ -3,10 +3,15 @@
 // ------------
 
 #include <Particle.h>
+#include <PowerShield.h>
+
 
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
+
+
+PowerShield batteryMonitor;
 
 
 // Some helpful Time.now unit conversions:
@@ -67,11 +72,14 @@ void publishData() {
     unsigned long usageInterval = now - lastPublishTime;
     unsigned long usage = thisPulseCount - lastPublishCount;
     int rssi = WiFi.RSSI();  // report whenever we're publishing
+    float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
+    float stateOfCharge = batteryMonitor.getSoC();
 
     // format all our vars into JSON; note Particle allows 255 chars max
     String data = String::format(
-        "{\"current\": %u, \"last\": %u, \"usage\": %u, \"interval\": %u, \"signalStrength\": %d}",
-        thisPulseCount, lastPublishCount, usage, usageInterval, rssi);
+        "{\"current\": %u, \"last\": %u, \"usage\": %u, \"interval\": %u, \"signal\": %d, \"battV\": %0.1f, \"battPct\": %0.1f}",
+        thisPulseCount, lastPublishCount, usage, usageInterval,
+        rssi, cellVoltage, stateOfCharge);
     if (Particle.publish(EVENT_DATA, data)) {
         lastPublishTime = now;
         lastPublishCount = thisPulseCount;
@@ -134,6 +142,9 @@ void setup() {
     // if we're waking from deep sleep because of WKP,
     // the interrupt handler won't have been called
     checkForPulse();
+
+    batteryMonitor.begin();
+    // batteryMonitor.quickStart();  // TODO: maybe run the first time we power up?
 }
 
 
