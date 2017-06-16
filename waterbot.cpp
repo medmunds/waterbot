@@ -5,6 +5,7 @@
 #include <Particle.h>
 
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
+STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 
 
