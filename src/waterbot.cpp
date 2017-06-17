@@ -27,11 +27,14 @@ PowerShield batteryMonitor;
 const unsigned long PUBLISH_IN_USE_INTERVAL = 15 * SECONDS; // 15 * MINUTES; // min between publishes
 const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 1 * MINUTES; // 24 * HOURS; // max between publishes
 
+const unsigned long SIGNAL_MSEC_ON = 350;
+const unsigned long SIGNAL_MSEC_OFF = 150;
+
 
 // Hardware constants
 
 const int PIN_PULSE_SWITCH = WKP;
-const int PIN_LED_SIGNAL = D7; // Used to indicate unpublished data
+const int PIN_LED_SIGNAL = D7; // Blink to indicate meter pulses
 
 
 // Event constants
@@ -49,6 +52,10 @@ retained unsigned long nextPublishInterval = 0; // secs after lastPublishTime
 retained unsigned long publishCount = 0; // number of publishes since power up
 
 
+// Non-persistent global data (lost during deep sleep)
+
+unsigned long pulsesToSignal = 0;
+
 
 void checkForPulse() {
     // Called for both pulse interrupts and timeout wakeup from deep sleep.
@@ -57,7 +64,7 @@ void checkForPulse() {
     if (digitalRead(PIN_PULSE_SWITCH) == HIGH) {
         pulseCount += 1;
         nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
-        digitalWrite(PIN_LED_SIGNAL, HIGH);
+        pulsesToSignal += 1;
     }
 }
 
@@ -88,7 +95,6 @@ void publishData() {
         if (pulseCount == thisPulseCount) {
             // if there's no earlier event, reconnect at the heartbeat interval
             nextPublishInterval = PUBLISH_HEARTBEAT_INTERVAL;
-            digitalWrite(PIN_LED_SIGNAL, LOW);
         }
     }
 }
@@ -110,6 +116,10 @@ unsigned int calcSleepTime() {
         return 0;
     }
     // TODO: check if firmware update in progress
+
+    if (pulsesToSignal > 0) {
+        return 0; // stay awake to signal reading
+    }
 
     // Sleep until time for next publish
     unsigned int nextPublishTime = lastPublishTime + nextPublishInterval;
@@ -143,7 +153,6 @@ void sleepDevice(unsigned int sleepSecs) {
         System.sleep(SLEEP_MODE_DEEP, sleepSecs);
     } else {
         // Must avoid deep sleep until WKP goes low; use stop mode until then
-        digitalWrite(PIN_LED_SIGNAL, LOW);  // led stays powered in stop
         System.sleep(WKP, FALLING, sleepSecs);
     }
 }
@@ -151,7 +160,7 @@ void sleepDevice(unsigned int sleepSecs) {
 
 void setup() {
     pinMode(PIN_LED_SIGNAL, OUTPUT);
-    digitalWrite(PIN_LED_SIGNAL, (pulseCount > lastPublishedPulseCount) ? HIGH : LOW);
+    digitalWrite(PIN_LED_SIGNAL, LOW);
 
     pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);
     attachInterrupt(PIN_PULSE_SWITCH, checkForPulse, RISING);  // deep sleep requires rising edge
@@ -178,6 +187,16 @@ void loop() {
     // publish
     if (Time.isValid() && Time.now() >= lastPublishTime + nextPublishInterval) {
         publishData();
+    }
+
+    if (pulsesToSignal > 0) {
+        pulsesToSignal -= 1;
+        digitalWrite(PIN_LED_SIGNAL, HIGH);
+        delay(SIGNAL_MSEC_ON);
+        digitalWrite(PIN_LED_SIGNAL, LOW);
+        if (pulsesToSignal > 0) {
+            delay(SIGNAL_MSEC_OFF);
+        }
     }
 
     // sleep
