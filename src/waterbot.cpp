@@ -30,7 +30,7 @@ const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 1 * MINUTES; // 24 * HOURS; // 
 
 // Hardware constants
 
-const int PIN_PULSE_SWITCH = D2;
+const int PIN_PULSE_SWITCH = WKP;
 const int PIN_LED_SIGNAL = D7; // Used to indicate unpublished data
 
 
@@ -134,11 +134,26 @@ void disconnectCleanly() {
 }
 
 
+void sleepDevice(unsigned int sleepSecs) {
+    // Enter minimum power mode, waking on rising WKP or after sleepTime secs.
+    // (Uses deep sleep if possible, with workaround for likely hardware bug
+    // when WKP held high during deep sleep: https://github.com/spark/firmware/issues/1262.)
+    if (digitalRead(WKP) == LOW) {
+        // Can use deep sleep mode
+        System.sleep(SLEEP_MODE_DEEP, sleepSecs);
+    } else {
+        // Must avoid deep sleep until WKP goes low; use stop mode until then
+        digitalWrite(PIN_LED_SIGNAL, LOW);  // led stays powered in stop
+        System.sleep(WKP, FALLING, sleepSecs);
+    }
+}
+
+
 void setup() {
     pinMode(PIN_LED_SIGNAL, OUTPUT);
     digitalWrite(PIN_LED_SIGNAL, (pulseCount > lastPublishedPulseCount) ? HIGH : LOW);
 
-    pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);  // system.sleep sets this for WKP
+    pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);
     attachInterrupt(PIN_PULSE_SWITCH, checkForPulse, RISING);  // deep sleep requires rising edge
 
     // if we're waking from deep sleep because of WKP,
@@ -171,7 +186,7 @@ void loop() {
         disconnectCleanly();
         sleepTime = calcSleepTime();  // might be less than before, if disconnecting took a while
         if (sleepTime > 0) {
-            System.sleep(SLEEP_MODE_DEEP, sleepTime);
+            sleepDevice(sleepTime);
         }
     }
 }
