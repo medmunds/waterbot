@@ -44,17 +44,17 @@ const char* EVENT_DATA = "waterbot/data";
 
 // Persistent data
 
-retained unsigned long pulseCount = 0;  // TODO: cache in EEPROM
+retained volatile unsigned long pulseCount = 0;  // TODO: cache in EEPROM
 
 retained unsigned long lastPublishTime = 0;
 retained unsigned long lastPublishedPulseCount = 0;
-retained unsigned long nextPublishInterval = 0; // secs after lastPublishTime
+retained volatile unsigned long nextPublishInterval = 0; // secs after lastPublishTime
 retained unsigned long publishCount = 0; // number of publishes since power up
 
 
 // Non-persistent global data (lost during deep sleep)
 
-unsigned long pulsesToSignal = 0;
+volatile unsigned long pulsesToSignal = 0;
 
 
 void checkForPulse() {
@@ -74,11 +74,14 @@ void publishData() {
         Particle.connect();  // turns on WiFi, etc.; blocks until ready
     }
 
-    // TODO: some of this data capture probably needs to be in a critical section...
-    unsigned long now = Time.now();
-    unsigned long thisPulseCount = pulseCount;  // capture in case we're interrupted
-    unsigned long usageInterval = now - lastPublishTime;
-    unsigned long usage = thisPulseCount - lastPublishedPulseCount;
+    unsigned long now, thisPulseCount, usageInterval, usage;
+    ATOMIC_BLOCK() {
+        // atomically capture a consistent set of data for the publish
+        now = Time.now();
+        thisPulseCount = pulseCount;
+        usageInterval = now - lastPublishTime;
+        usage = thisPulseCount - lastPublishedPulseCount;
+    }
     int rssi = WiFi.RSSI();  // report whenever we're publishing
     float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
     float stateOfCharge = batteryMonitor.getSoC();
@@ -89,12 +92,14 @@ void publishData() {
         thisPulseCount, lastPublishedPulseCount, usage, usageInterval,
         publishCount, rssi, cellVoltage, stateOfCharge);
     if (Particle.publish(EVENT_DATA, data)) {
-        lastPublishTime = now;
-        lastPublishedPulseCount = thisPulseCount;
-        publishCount += 1;
-        if (pulseCount == thisPulseCount) {
-            // if there's no earlier event, reconnect at the heartbeat interval
-            nextPublishInterval = PUBLISH_HEARTBEAT_INTERVAL;
+        ATOMIC_BLOCK() {
+            lastPublishTime = now;
+            lastPublishedPulseCount = thisPulseCount;
+            publishCount += 1;
+            if (pulseCount == thisPulseCount) {
+                // if there's no earlier event, reconnect at the heartbeat interval
+                nextPublishInterval = PUBLISH_HEARTBEAT_INTERVAL;
+            }
         }
     }
 }
