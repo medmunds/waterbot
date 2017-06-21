@@ -30,6 +30,8 @@ const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 1 * MINUTES; // 24 * HOURS; // 
 const unsigned long SIGNAL_MSEC_ON = 350;
 const unsigned long SIGNAL_MSEC_OFF = 150;
 
+const unsigned long DEBOUNCE_MSEC = 300;
+
 
 // Hardware constants
 
@@ -55,13 +57,18 @@ retained unsigned long publishCount = 0; // number of publishes since power up
 // Non-persistent global data (lost during deep sleep)
 
 volatile unsigned long pulsesToSignal = 0;
+volatile unsigned long lastPulseMillis = 0;
 
 
 void checkForPulse() {
     // Called for both pulse interrupts and timeout wakeup from deep sleep.
     // Check the pulse pin status to disambiguate.
     // https://community.particle.io/t/photon-wkp-pin-interupt-flag-question/14280/3
-    if (digitalRead(PIN_PULSE_SWITCH) == HIGH) {
+    unsigned long now = millis();
+    if (digitalRead(PIN_PULSE_SWITCH) == HIGH
+        && (lastPulseMillis == 0 || now >= lastPulseMillis + DEBOUNCE_MSEC)
+    ) {
+        lastPulseMillis = now;
         pulseCount += 1;
         nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
         pulsesToSignal += 1;
@@ -108,6 +115,11 @@ unsigned int calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
 
     // First, are we still doing work we need to stay awake for?
+    if (lastPulseMillis > 0 && millis() < lastPulseMillis + DEBOUNCE_MSEC) {
+        // complete the debounce (lastPulseMillis is lost during sleep)
+        return 0;
+    }
+
     if (!Time.isValid()) {
         return 0;
     }
