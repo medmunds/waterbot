@@ -43,9 +43,13 @@ const int PIN_PULSE_SWITCH = WKP;
 const int PIN_LED_SIGNAL = D7; // Blink to indicate meter pulses
 
 
-// Event constants
+// Cloud messaging constants
 
-const char* EVENT_DATA = "waterbot/data";
+const char* EVENT_DATA = "waterbot/data"; // publish data to cloud
+
+const char* FUNC_SET_READING = "setReading"; // reset from cloud
+const char* FUNC_PUBLISH_NOW = "publishNow";
+const char* FUNC_SLEEP_NOW = "sleepNow";
 
 
 // Persistent data
@@ -126,6 +130,36 @@ void publishData() {
         }
     }
 }
+
+// Cloud function: arg int newPulseCount
+int setReading(String args) {
+    long newPulseCount = args.toInt();
+    if (newPulseCount < 0 || (newPulseCount == 0 && !args.equals("0"))) {
+        return -1;
+    }
+
+    unsigned long now = Time.now();
+    ATOMIC_BLOCK() {
+        pulseCount = newPulseCount;
+        lastPublishedPulseCount = newPulseCount;
+        lastPublishTime = now;
+        nextPublishInterval = 0; // publish immediately
+    }
+    return 0;
+}
+
+// Cloud function
+int sleepNow(String args) {
+    stayAwakeUntilMillis = millis();
+    return 0;
+}
+
+// Cloud function
+int publishNow(String args) {
+    nextPublishInterval = 0;
+    return 0;
+}
+
 
 unsigned int calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
@@ -222,6 +256,10 @@ void setup() {
     }
 
     batteryMonitor.begin();
+
+    Particle.function(FUNC_SET_READING, setReading);
+    Particle.function(FUNC_PUBLISH_NOW, publishNow);
+    Particle.function(FUNC_SLEEP_NOW, sleepNow);
 
     // if we lost track of time while powered down, restore it now
     if (!Time.isValid()) {
