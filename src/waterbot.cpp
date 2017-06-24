@@ -27,6 +27,10 @@ PowerShield batteryMonitor;
 const unsigned long PUBLISH_IN_USE_INTERVAL = 15 * SECONDS; // 15 * MINUTES; // min between publishes
 const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 1 * MINUTES; // 24 * HOURS; // max between publishes
 
+// pressing the reset button will wake up, connect to the cloud,
+// and stay away this long (for setup/diagnostics/updates):
+const unsigned long RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
+
 const unsigned long SIGNAL_MSEC_ON = 350;
 const unsigned long SIGNAL_MSEC_OFF = 150;
 
@@ -57,13 +61,24 @@ retained unsigned long publishCount = 0; // number of publishes since power up
 // Non-persistent global data (lost during deep sleep)
 
 volatile unsigned long pulsesToSignal = 0;
-volatile unsigned long lastPulseMillis = 0;
+volatile unsigned long stayAwakeUntilMillis = 0;
 
+
+inline void stayAwakeForMsec(unsigned long msec) {
+    // don't allow sleep until at least msec from now
+    unsigned long now = millis();
+    if (now + msec > stayAwakeUntilMillis
+        || msec > ULONG_MAX - now) // rollover
+    {
+        stayAwakeUntilMillis = now + msec;
+    }
+}
 
 void checkForPulse() {
     // Called for both pulse interrupts and timeout wakeup from deep sleep.
     // Check the pulse pin status to disambiguate.
     // https://community.particle.io/t/photon-wkp-pin-interupt-flag-question/14280/3
+    static unsigned long lastPulseMillis = 0;
     unsigned long now = millis();
     if (digitalRead(PIN_PULSE_SWITCH) == HIGH
         && (lastPulseMillis == 0 || now >= lastPulseMillis + DEBOUNCE_MSEC)
@@ -72,6 +87,7 @@ void checkForPulse() {
         pulseCount += 1;
         nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
         pulsesToSignal += 1;
+        stayAwakeForMsec(DEBOUNCE_MSEC);
     }
 }
 
@@ -115,8 +131,7 @@ unsigned int calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
 
     // First, are we still doing work we need to stay awake for?
-    if (lastPulseMillis > 0 && millis() < lastPulseMillis + DEBOUNCE_MSEC) {
-        // complete the debounce (lastPulseMillis is lost during sleep)
+    if (millis() <= stayAwakeUntilMillis) {
         return 0;
     }
 
@@ -182,25 +197,43 @@ void setup() {
     pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);
     attachInterrupt(PIN_PULSE_SWITCH, checkForPulse, RISING);  // deep sleep requires rising edge
 
-    // if we're waking from deep sleep because of WKP,
-    // the interrupt handler won't have been called
-    checkForPulse();
+    // why are we powering up?
+    switch (System.resetReason()) {
+    case RESET_REASON_PIN_RESET:
+        // user pressed reset button
+        Particle.connect(); // blocks!
+        stayAwakeForMsec(RESET_STAY_AWAKE_INTERVAL * 1000);
+        break;
+    case RESET_REASON_POWER_MANAGEMENT:
+        // waking from deep sleep
+        // if this was due to WKP, need to record the pulse
+        checkForPulse();
+        break;
+    case RESET_REASON_POWER_DOWN:
+        // battery/power re-attached
+        // maybe call batteryMonitor.quickStart() (after batteryMonitor.begin())
+        break;
+    case RESET_REASON_UPDATE:
+        // new firmware
+        break;
+    default:
+        // safe mode, etc. are handled by system firmware
+        break;
+    }
 
     batteryMonitor.begin();
-    // batteryMonitor.quickStart();  // TODO: maybe run the first time we power up?
-}
 
-
-void loop() {
-    // if we're waking from sleep, make sure we still have correct time
-    bool isInitialized = nextPublishInterval > 0;
-    if (isInitialized && !Time.isValid()) {
+    // if we lost track of time while powered down, restore it now
+    if (!Time.isValid()) {
         if (!Particle.connected()) {
             Particle.connect();
         }
         waitUntil(Particle.syncTimeDone); // TODO: timeout?
     }
+}
 
+
+void loop() {
     // publish
     if (Time.isValid() && Time.now() >= lastPublishTime + nextPublishInterval) {
         publishData();
