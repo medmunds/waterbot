@@ -24,8 +24,8 @@ PowerShield batteryMonitor;
 
 // publish no more often than the in-use interval while water is running;
 // but when water isn't running, publish at least once every heartbeat interval
-const unsigned long PUBLISH_IN_USE_INTERVAL = 15 * SECONDS; // 15 * MINUTES; // min between publishes
-const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 1 * MINUTES; // 24 * HOURS; // max between publishes
+const unsigned long PUBLISH_IN_USE_INTERVAL = 15 * MINUTES; // min between publishes
+const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 24 * HOURS; // max between publishes
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
