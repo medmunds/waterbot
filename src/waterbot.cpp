@@ -5,11 +5,11 @@
 #include <Particle.h>
 #include <PowerShield.h>
 
-
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 
+const char *WATERBOT_VERSION = "0.1.0";
 
 PowerShield batteryMonitor;
 
@@ -115,9 +115,12 @@ void publishData() {
 
     // format all our vars into JSON; note Particle allows 255 chars max
     String data = String::format(
-        "{\"current\": %u, \"last\": %u, \"usage\": %u, \"interval\": %u, \"serial\": %u, \"signal\": %d, \"battV\": %0.2f, \"battPct\": %0.2f}",
-        thisPulseCount, lastPublishedPulseCount, usage, usageInterval,
-        publishCount, rssi, cellVoltage, stateOfCharge);
+        "{\"t\": %d, \"seq\": %u, \"per\": %u,"
+        " \"cur\": %u, \"lst\": %u, \"use\": %u,"
+        " \"sig\": %d, \"btv\": %0.2f, \"btp\": %0.2f, \"v\": \"%s\"}",
+        now, publishCount, usageInterval,
+        thisPulseCount, lastPublishedPulseCount, usage,
+        rssi, cellVoltage, stateOfCharge, WATERBOT_VERSION);
     if (Particle.publish(EVENT_DATA, data)) {
         ATOMIC_BLOCK() {
             lastPublishTime = now;
