@@ -1,0 +1,14 @@
+{
+  "name": "waterbot",
+  "version": "0.1.0",
+  "description": "Waterbot data-loader Google Cloud Function",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mike Edmunds",
+  "license": "MIT",
+  "dependencies": {
+    "@google-cloud/bigquery": "^0.9.6"
+  }
+}
