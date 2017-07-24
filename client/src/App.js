@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import {VictoryTheme} from 'victory';
+import theme from './components/victoryTheme';
 
 import './App.css';
 import {HourlyChart, DailyChart, MonthlyChart} from './components/Charts';
@@ -36,7 +36,6 @@ class App extends Component {
 
   render() {
     const {hourlyData, dailyData, monthlyData} = this.state;
-    const theme = VictoryTheme.material;
     const now = "2017-07-21 18:00:00-0700";
 
     return (

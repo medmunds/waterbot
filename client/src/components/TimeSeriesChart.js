@@ -33,7 +33,6 @@ export default function TimeSeriesChart({
       domainPadding={20}
       scale={{x: "time", y: "linear"}}
       theme={theme}
-      width={400} height={225}
     >
       <VictoryAxis
         tickFormat={timeTickFormat}
@@ -41,10 +40,8 @@ export default function TimeSeriesChart({
       <VictoryAxis
         dependentAxis={true}
       />
-      <VictoryGroup
-        colorScale="cool"
-      >
-        <VictoryBar
+      <VictoryGroup>
+      <VictoryBar
           data={cleanedData}
         />
       </VictoryGroup>
