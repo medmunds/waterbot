@@ -34,7 +34,7 @@ function formatMonth(ts) {
 
 export function HourlyChart({hourlyData, now, theme}) {
   const end = moment(now).endOf('hour');
-  const start = end.clone().subtract(48, 'hours');
+  const start = end.clone().subtract(24, 'hours');
 
   return <TimeSeriesChart
     data={hourlyData}

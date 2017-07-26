@@ -21,10 +21,10 @@ export default function TimeSeriesChart({
       width: 5, // ugh -- surely there's a better way to control bar spacing
     }))
     .filter(({x}) => (start <= x && x < end));
-
+  const maxY = Math.max.apply(null, cleanedData.map(({y}) => y));
   const domain = {
     x: [start, end],
-    y: data.length > 0 ? undefined : [0, 100],  // force a scale if there's no data in range
+    y: [0, maxY || 20],  // force a scale if there's no data in range (or all data points are 0)
   };
 
   return (
