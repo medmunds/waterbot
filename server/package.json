@@ -9,6 +9,7 @@
   "author": "Mike Edmunds",
   "license": "MIT",
   "dependencies": {
-    "@google-cloud/bigquery": "^0.9.6"
+    "@google-cloud/bigquery": "^0.9.6",
+    "moment": "^2.18.1"
   }
 }
