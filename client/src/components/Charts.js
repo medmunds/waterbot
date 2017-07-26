@@ -34,11 +34,11 @@ function formatMonth(ts) {
 
 export function HourlyChart({hourlyData, now, theme}) {
   const end = moment(now).endOf('hour');
-  const start = end.clone().subtract(25, 'h');
+  const start = end.clone().subtract(48, 'hours');
 
   return <TimeSeriesChart
     data={hourlyData}
-    timeField="hour" timeFormat="YYYYMMDDHH" timeTickFormat={formatHour}
+    timeField="hour" timeFormat="YYYY-MM-DD HH" timeTickFormat={formatHour}
     start={start} end={end}
     valueField={usageGallons}
     theme={theme}
@@ -47,11 +47,11 @@ export function HourlyChart({hourlyData, now, theme}) {
 
 export function DailyChart({dailyData, now, theme}) {
   const end = moment(now).endOf('day');
-  const start = end.clone().subtract(31, 'd');
+  const start = end.clone().subtract(31, 'days');
 
   return <TimeSeriesChart
     data={dailyData}
-    timeField="date" timeFormat="YYYYMMDD" timeTickFormat={formatDay}
+    timeField="date" timeFormat="YYYY-MM-DD" timeTickFormat={formatDay}
     start={start} end={end}
     valueField={usageGallons}
     theme={theme}
@@ -64,7 +64,7 @@ export function MonthlyChart({monthlyData, now, theme}) {
 
   return <TimeSeriesChart
     data={monthlyData}
-    timeField="month" timeFormat="YYYYMM" timeTickFormat={formatMonth}
+    timeField="month" timeFormat="YYYY-MM" timeTickFormat={formatMonth}
     start={start} end={end}
     valueField={usageGallons}
     theme={theme}

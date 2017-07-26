@@ -1,14 +1,10 @@
 
+const reportUrl = 'https://us-central1-molten-turbine-171801.cloudfunctions.net/report';
+const deviceId = '31001a001047343438323536'; // live waterbot
 
 
-function parseJsonLines(text) {
-  const lines = text.trim().split('\n');
-  return JSON.parse(`[${lines.join(',')}]`);
-}
-
-
-export function fetchJsonLines(url) {
-  return fetch(url)
-    .then(response => response.text())
-    .then(parseJsonLines);
+export function fetchReport(type='daily') {
+  return fetch(`${reportUrl}?type=${encodeURIComponent(type)}&device_id=${encodeURIComponent(deviceId)}`)
+    .then(response => response.json())
+    .then(({data}) => data);
 }

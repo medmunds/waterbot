@@ -4,7 +4,7 @@ import theme from './components/victoryTheme';
 import './App.css';
 import {HourlyChart, DailyChart, MonthlyChart} from './components/Charts';
 import Scorecard from './components/Scorecard';
-import {fetchJsonLines} from './data';
+import {fetchReport} from './data';
 
 
 class App extends Component {
@@ -20,15 +20,15 @@ class App extends Component {
 
   componentDidMount() {
     const self = this;
-    fetchJsonLines('./reports-hourly.jsonl')
+    fetchReport('hourly')
       .then(hourlyData => {
         self.setState({hourlyData});
       });
-    fetchJsonLines('./reports-daily.jsonl')
+    fetchReport('daily')
       .then(dailyData => {
         self.setState({dailyData});
       });
-    fetchJsonLines('./reports-monthly.jsonl')
+    fetchReport('monthly')
       .then(monthlyData => {
         self.setState({monthlyData});
       });
@@ -36,7 +36,7 @@ class App extends Component {
 
   render() {
     const {hourlyData, dailyData, monthlyData} = this.state;
-    const now = "2017-07-21 18:00:00-0700";
+    const now = undefined; // uses current time
 
     return (
       <main className="App">
