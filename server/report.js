@@ -38,6 +38,7 @@ const reports = {
       ORDER BY \`hour\` ASC
       ;`,
     start_time: (now) => moment(now).startOf('day').subtract(60, 'days'),
+    cache_seconds: 5 * 60,
   },
   daily: {
     query: `
@@ -55,6 +56,7 @@ const reports = {
       ORDER BY \`date\` ASC
       ;`,
     start_time: (now) => moment(now).startOf('day').subtract(24, 'months'),
+    cache_seconds: 12 * 60 * 60,
   },
   monthly: {
     query: `
@@ -72,6 +74,7 @@ const reports = {
       ORDER BY \`month\` ASC
       ;`,
     start_time: (now) => moment(now).startOf('year').subtract(5, 'years'),
+    cache_seconds: 24 * 60 * 60,
   },
 };
 
@@ -79,7 +82,6 @@ const reports = {
 exports.report = function report(req, res) {
   // TODO: validate req.method
   res.set('Access-Control-Allow-Origin', '*');
-  // TODO: set some caching headers, too
 
   const type = (req.query.type || 'daily').toLowerCase();
   const report = reports[type];
@@ -123,6 +125,7 @@ exports.report = function report(req, res) {
         data: rows,
         // would be nice if we could determine whether BigQuery result was cached
       };
+      res.set('Cache-Control', `public, max-age=${report.cache_seconds}`);
       res.json(result);
       res.end();
     })
