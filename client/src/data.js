@@ -52,29 +52,29 @@ export function fetchReport(reportType='daily') {
 }
 
 
-// All ranges are [start, end)  (inclusive of start, exclusive of end)
+// All ranges are inclusive of [start, end]
 
 function last24HoursRange(now) {
-  const end = moment(now).startOf('hour').add(1, 'hour');
-  const start = end.clone().subtract(24, 'hours');
+  const start = moment(now).startOf('hour').subtract(24, 'hours');
+  const end = moment(now).endOf('hour');
   return {start, end};
 }
 
 function last30DaysRange(now) {
-  const end = moment(now).startOf('day').add(1, 'day');
-  const start = end.clone().subtract(30, 'days');
+  const start = moment(now).startOf('day').subtract(30, 'days');
+  const end = moment(now).endOf('day');
   return {start, end};
 }
 
 function yearToDateRange(now) {
-  const end = moment(now).startOf('day').add(1, 'day');
   const start = moment(now).startOf('year');
+  const end = moment(now).endOf('day');
   return {start, end};
 }
 
 function thisYearRange(now) {
   const start = moment(now).startOf('year');
-  const end = start.clone().endOf('year');
+  const end = moment(now).endOf('year');
   return {start, end};
 }
 
@@ -86,7 +86,7 @@ const FORMAT_MONTH = 'YYYY-MM';
 function filterRowsInRange(rows, start, end, filterField, format) {
   const startFilter = start.format(format);
   const endFilter = end.format(format);
-  return rows.filter(row => row[filterField] >= startFilter && row[filterField] < endFilter);
+  return rows.filter(row => row[filterField] >= startFilter && row[filterField] <= endFilter);
 }
 
 
@@ -136,7 +136,7 @@ export function selectLast30DaysScorecard(state) {
     value: totalUsageGals,
     unitLabel: "gals",
     comparisonValue: lastYearUsage,
-    comparisonLabel: `${lastYearStart.format('M/D')}–${lastYearEnd.format('M/D/YYYY')}`,
+    comparisonLabel: `last year (${start.format('M/D')}–${end.format('M/D')})`,
   };
 }
 
@@ -173,7 +173,7 @@ export function selectYearToDateScorecard(state) {
     value: totalUsageGals,
     unitLabel: "gals",
     comparisonValue: lastYearUsage,
-    comparisonLabel: `${lastYearStart.format('M/D')}–${lastYearEnd.format('M/D/YYYY')}`,
+    comparisonLabel: `last year (${start.format('M/D')}–${end.format('M/D')})`,
   };
 }
 

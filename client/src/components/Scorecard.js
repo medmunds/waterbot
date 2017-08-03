@@ -15,7 +15,7 @@ export default function Scorecard({
   let comparison = null;
   if (comparisonValue !== undefined) {
     const change = (value / comparisonValue) - 1.0;
-    comparison = <div className="scorecard--comparison">{percentFormatter.format(change)} vs. {comparisonLabel}</div>;
+    comparison = <div className="scorecard--comparison">{percentFormatter.format(change)} from {comparisonLabel}</div>;
   }
 
   return (
