@@ -1,5 +1,5 @@
 import React from 'react';
-import {VictoryAxis, VictoryBar, VictoryChart, VictoryGroup} from 'victory';
+import {VictoryAxis, VictoryBar, VictoryChart, VictoryGroup, VictoryTooltip} from 'victory';
 
 
 export default function ComparisonChart({
@@ -26,7 +26,11 @@ export default function ComparisonChart({
       <VictoryAxis
         dependentAxis={true}
       />
-      <VictoryGroup offset={30}>
+      <VictoryGroup
+        offset={30}
+        labels={(d) => `${xTickFormat(d.x)}\n${d.y}` /* this only gets value from last series */}
+        labelComponent={<VictoryTooltip/>}
+      >
         {series.map(({label, data}) => (
           <VictoryBar
             key={label}

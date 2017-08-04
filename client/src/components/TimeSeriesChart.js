@@ -1,6 +1,6 @@
 import moment from 'moment';
 import React from 'react';
-import {VictoryAxis, VictoryBar, VictoryChart, VictoryGroup} from 'victory';
+import {VictoryAxis, VictoryBar, VictoryChart, VictoryTooltip} from 'victory';
 
 
 export default function TimeSeriesChart({
@@ -27,16 +27,18 @@ export default function TimeSeriesChart({
       theme={theme}
     >
       <VictoryAxis
+        crossAxis={false}
         tickFormat={timeTickFormat}
       />
       <VictoryAxis
+        crossAxis={false}
         dependentAxis={true}
       />
-      <VictoryGroup>
       <VictoryBar
           data={data}
+          labels={(d) => `${timeTickFormat(d.x)}: ${Math.round(d.y)} gals`}
+          labelComponent={<VictoryTooltip/>}
         />
-      </VictoryGroup>
     </VictoryChart>
   );
 }
