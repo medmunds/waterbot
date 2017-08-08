@@ -6,11 +6,15 @@ import {selectLast24HoursChart, selectLast30DaysChart, selectThisYearChart} from
 import ComparisonChart from "./components/ComparisonChart";
 
 
-function formatHour(ts) {
+function formatHour(ts, i) {
   // Victory has flattened the moment object to an int
   const t = moment(ts);
   const hourString = t.format('ha');
-  return t.hour() !== 0 ? hourString : [hourString, t.format('ddd M/D')];
+  if (i === 0 || t.hour() === 0) {
+    return [hourString, t.format('ddd M/D')];
+  } else {
+    return hourString;
+  }
 }
 
 function formatDay(ts) {
