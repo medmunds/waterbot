@@ -9,7 +9,11 @@ export default function TimeSeriesChart({
   start, end,
   theme,
 }) {
-  data = data || [];
+  if (!data || data.length < 1) {
+    // avoid NaN in axis calculations
+    return null;
+  }
+
   start = moment(start);
   end = moment(end);
 
