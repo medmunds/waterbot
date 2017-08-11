@@ -1,16 +1,9 @@
-import React from 'react';
+// import React from 'react';
+import {connect} from 'react-redux';
 import Scorecard from "./components/Scorecard";
-import {selectLast24HoursScorecard, selectLast30DaysScorecard, selectYearToDateScorecard} from "./data";
+import {selectLast24HoursScorecard, selectLast30DaysScorecard, selectYearToDateScorecard} from "./store/data";
 
 
-export function ScorecardLast24Hours({state}) {
-  return <Scorecard {...selectLast24HoursScorecard(state)}/>
-}
-
-export function ScorecardLast30Days({state}) {
-  return <Scorecard {...selectLast30DaysScorecard(state)}/>
-}
-
-export function ScorecardYearToDate({state}) {
-  return <Scorecard {...selectYearToDateScorecard(state)}/>
-}
+export const ScorecardLast24Hours = connect(selectLast24HoursScorecard)(Scorecard);
+export const ScorecardLast30Days = connect(selectLast30DaysScorecard)(Scorecard);
+export const ScorecardYearToDate = connect(selectYearToDateScorecard)(Scorecard);

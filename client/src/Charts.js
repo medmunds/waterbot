@@ -1,9 +1,10 @@
 import moment from 'moment';
-import React from 'react';
+// import React from 'react';
+import {connect} from 'react-redux';
+
+import ComparisonChart from "./components/ComparisonChart";
 import TimeSeriesChart from './components/TimeSeriesChart';
 import theme from './components/victoryTheme';
-import {selectLast24HoursChart, selectLast30DaysChart, selectThisYearChart} from "./data";
-import ComparisonChart from "./components/ComparisonChart";
 
 
 function formatHour(ts, i) {
@@ -25,30 +26,75 @@ function formatDay(ts) {
 }
 
 function formatMonth(m) {
-  return moment().month(m).format('MMM');
+  return moment().month(m-1).format('MMM');
 }
 
 
-export function ChartLast24Hours({state}) {
-  return <TimeSeriesChart
-    timeTickFormat={formatHour}
-    theme={theme}
-    {...selectLast24HoursChart(state)}
-  />;
+function mapStateToPropsDay(state) {
+  const {data: {hourly}, ui: {day: {endTimestamp}}} = state;
+  const end = moment(endTimestamp).endOf('hour');
+  const start = end.clone().startOf('hour').subtract(24, 'hours');
+  const data = Object.values(hourly)
+    .filter(row => (start <= row.timestamp && row.timestamp <= end))
+    .map(row => ({x: row.timestamp, y: row.usageGals}));
+
+  return {
+    timeTickFormat: formatHour,
+    theme,
+    start,
+    end,
+    data,
+  };
 }
 
-export function ChartLast30Days({state}) {
-  return <TimeSeriesChart
-    timeTickFormat={formatDay}
-    theme={theme}
-    {...selectLast30DaysChart(state)}
-  />;
+export const ChartLast24Hours = connect(mapStateToPropsDay)(TimeSeriesChart);
+
+
+function mapStateToPropsMonth(state) {
+  const {data: {daily}, ui: {month: {endTimestamp}}} = state;
+  const end = moment(endTimestamp).endOf('day');
+  const start = end.clone().startOf('day').subtract(30, 'days');
+  const data = Object.values(daily)
+    .filter(row => (start <= row.timestamp && row.timestamp <= end))
+    .map(row => ({x: row.timestamp, y: row.usageGals}));
+
+  return {
+    timeTickFormat: formatDay,
+    theme,
+    start,
+    end,
+    data,
+  };
 }
 
-export function ChartThisYear({state}) {
-  return <ComparisonChart
-    xTickFormat={formatMonth}
-    theme={theme}
-    {...selectThisYearChart(state)}
-  />;
+export const ChartLast30Days = connect(mapStateToPropsMonth)(TimeSeriesChart);
+
+
+function mapStateToPropsYTD(state) {
+  const {data: {monthly}, ui: {ytd: {year}}} = state;
+
+  const thisYearStart = year ? moment({year}) : moment().startOf('year');
+  const thisYearEnd = thisYearStart.clone().endOf('year');
+  const thisYearData = Object.values(monthly)
+    .filter(row => (thisYearStart <= row.timestamp && row.timestamp <= thisYearEnd))
+    .map(row => ({x: parseInt(row.timestampStr.slice(5), 10), y: row.usageGals}));
+
+  const lastYearStart = thisYearStart.clone().subtract(1, 'year');
+  const lastYearEnd = thisYearEnd.clone().subtract(1, 'year');
+  const lastYearData = Object.values(monthly)
+    .filter(row => (lastYearStart <= row.timestamp && row.timestamp <= lastYearEnd))
+    .map(row => ({x: parseInt(row.timestampStr.slice(5), 10), y: row.usageGals}));
+
+  return {
+    xTickFormat: formatMonth,
+    theme,
+    start: 1,
+    end: 12,
+    series: [
+      {label: thisYearStart.format('YYYY'), data: thisYearData},
+      {label: lastYearStart.format('YYYY'), data: lastYearData},
+    ],
+  };
 }
+
+export const ChartThisYear = connect(mapStateToPropsYTD)(ComparisonChart);
