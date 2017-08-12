@@ -1,0 +1,11 @@
+{
+  "name": "waterbot-firmware",
+  "version": "0.1.0",
+  "description": "Particle Photon firmware for waterbot",
+  "main": "index.js",
+  "author": "Mike Edmunds",
+  "license": "MIT",
+  "dependencies": {
+    "particle-cli": "^1.23.1"
+  }
+}
