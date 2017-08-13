@@ -9,7 +9,7 @@ STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 
-const char *WATERBOT_VERSION = "0.1.0";
+const char *WATERBOT_VERSION = "0.1.1";
 
 PowerShield batteryMonitor;
 
@@ -25,7 +25,7 @@ PowerShield batteryMonitor;
 // publish no more often than the in-use interval while water is running;
 // but when water isn't running, publish at least once every heartbeat interval
 const unsigned long PUBLISH_IN_USE_INTERVAL = 5 * MINUTES; // min between publishes
-const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 12 * HOURS; // max between publishes
+const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publishes
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):

@@ -2,6 +2,10 @@
   "name": "waterbot-firmware",
   "version": "0.1.0",
   "description": "Particle Photon firmware for waterbot",
+  "scripts": {
+    "build": "particle compile photon project.properties src",
+    "flash": "particle flash waterbot project.properties src"
+  },
   "main": "index.js",
   "author": "Mike Edmunds",
   "license": "MIT",
