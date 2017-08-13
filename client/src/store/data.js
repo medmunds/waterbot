@@ -138,7 +138,7 @@ export function selectLast24HoursScorecard(state) {
   return {
     value: totalUsageGals,
     fractionDigits: 1,
-    unitLabel: "gals",
+    unitLabel: "gallons",
   };
 }
 
@@ -156,9 +156,10 @@ export function selectLast30DaysScorecard(state) {
 
   return {
     value: totalUsageGals,
-    unitLabel: "gals",
+    unitLabel: "gallons",
     comparisonValue: lastYearUsage,
-    comparisonLabel: `last year (${start.format('M/D')}–${end.format('M/D')})`,
+    comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
+    decreaseIsPositive: true,
   };
 }
 
@@ -178,8 +179,9 @@ export function selectYearToDateScorecard(state) {
 
   return {
     value: totalUsageGals,
-    unitLabel: "gals",
+    unitLabel: "gallons",
     comparisonValue: lastYearUsage,
-    comparisonLabel: `last year (${start.format('M/D')}–${end.format('M/D')})`,
+    comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
+    decreaseIsPositive: true,
   };
 }

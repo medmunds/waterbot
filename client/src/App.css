@@ -1,7 +1,7 @@
 .App {
 }
 
-.scorecard, .chart {
+.Scorecard, .chart {
   display: inline-block;
   vertical-align: top;
   padding: 24px;

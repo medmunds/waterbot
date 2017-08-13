@@ -1,9 +1,28 @@
-.scorecard--value {
+.Scorecard--value {
   font-size: 24px;
   line-height: 32px;
 }
 
-.scorecard--unit {
+.Scorecard--unit {
+  padding-left: 0.4em;
+  opacity: 0.8;
+  color: rgba(0, 0, 0, 0.54);
+}
+
+
+.Comparison-type-positive .Comparison--value {
+  color: #1565C0;
+}
+
+.Comparison-type-negative .Comparison--value {
+  color: #B71C1C;
+}
+
+.Comparison-type-neutral .Comparision--value {
+  /*color: inherit;*/
+}
+
+.Comparison--label {
   padding-left: 0.4em;
   opacity: 0.8;
   color: rgba(0, 0, 0, 0.54);
