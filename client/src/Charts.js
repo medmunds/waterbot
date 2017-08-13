@@ -26,6 +26,7 @@ function formatDay(ts) {
 }
 
 function formatMonth(m) {
+  // m is 1-based month
   return moment().month(m-1).format('MMM');
 }
 
@@ -72,27 +73,41 @@ export const ChartLast30Days = connect(mapStateToPropsMonth)(TimeSeriesChart);
 
 function mapStateToPropsYTD(state) {
   const {data: {monthly}, ui: {ytd: {year}}} = state;
+  const data = [];
+
+  // VictoryGroup has trouble with domainPadding when x is 0-based, so just stick with 1-based months
 
   const thisYearStart = year ? moment({year}) : moment().startOf('year');
   const thisYearEnd = thisYearStart.clone().endOf('year');
-  const thisYearData = Object.values(monthly)
+  Object.values(monthly)
     .filter(row => (thisYearStart <= row.timestamp && row.timestamp <= thisYearEnd))
-    .map(row => ({x: parseInt(row.timestampStr.slice(5), 10), y: row.usageGals}));
+    .forEach(row => {
+      const month = parseInt(row.timestampStr.slice(5), 10); // 1-based
+      const index = month - 1;
+      data[index] = data[index] || {x: month};
+      data[index].thisYear = row.usageGals;
+    });
 
   const lastYearStart = thisYearStart.clone().subtract(1, 'year');
   const lastYearEnd = thisYearEnd.clone().subtract(1, 'year');
-  const lastYearData = Object.values(monthly)
+  Object.values(monthly)
     .filter(row => (lastYearStart <= row.timestamp && row.timestamp <= lastYearEnd))
-    .map(row => ({x: parseInt(row.timestampStr.slice(5), 10), y: row.usageGals}));
+    .forEach(row => {
+      const month = parseInt(row.timestampStr.slice(5), 10); // 1-based
+      const index = month - 1;
+      data[index] = data[index] || {x: month};
+      data[index].lastYear = row.usageGals;
+    });
 
   return {
+    data,
     xTickFormat: formatMonth,
     theme,
     start: 1,
     end: 12,
     series: [
-      {label: thisYearStart.format('YYYY'), data: thisYearData},
-      {label: lastYearStart.format('YYYY'), data: lastYearData},
+      {label: thisYearStart.format('YYYY'), valueKey: "thisYear"},
+      {label: lastYearStart.format('YYYY'), valueKey: "lastYear"},
     ],
   };
 }
