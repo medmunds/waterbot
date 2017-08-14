@@ -37,7 +37,7 @@ const reports = {
       GROUP BY \`hour\`
       ORDER BY \`hour\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('day').subtract(60, 'days'),
+    start_time: (now) => moment(now).startOf('day').subtract(14, 'days'),
     cache_seconds: 5 * 60,
   },
   daily: {
@@ -55,7 +55,7 @@ const reports = {
       GROUP BY \`date\`
       ORDER BY \`date\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('day').subtract(24, 'months'),
+    start_time: (now) => moment(now).startOf('year').subtract(12, 'months'),
     cache_seconds: 12 * 60 * 60,
   },
   monthly: {
@@ -73,7 +73,7 @@ const reports = {
       GROUP BY \`month\`
       ORDER BY \`month\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('year').subtract(5, 'years'),
+    start_time: (now) => moment(now).startOf('year').subtract(3, 'years'),
     cache_seconds: 24 * 60 * 60,
   },
 };
