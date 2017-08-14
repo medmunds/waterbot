@@ -1,8 +1,10 @@
 import moment from 'moment';
 import React from 'react';
 import {connect} from 'react-redux';
+import last from 'lodash/last';
 import max from 'lodash/max';
 import Scorecard from "./components/Scorecard";
+import Sparkline from "./components/Sparkline";
 
 
 function selectLastReading(state) {
@@ -39,36 +41,62 @@ function CurrentMeterComponent({lastReadingTime, ...scorecardProps}) {
 export const CurrentMeter = connect(selectCurrentMeter)(CurrentMeterComponent);
 
 
-function selectCurrentBattery(state) {
-  const lastReading = selectLastReading(state);
-  if (!lastReading) {
-    return {value: undefined};
-  }
-  const {min_battery_pct} = lastReading;
+function makeHourlySparklineSelector(valueKey, props) {
+  const {scorecard, sparkline} = props;
 
-  return {
+  return function select(state) {
+    const {data: {hourly}} = state;
+    const data = Object.keys(hourly)
+      .sort()
+      .map(key => ({x: hourly[key].timestamp, y: hourly[key][valueKey]}))
+      .filter(({y}) => y !== undefined); //  && y !== null
+    const lastReading = last(data);
+    const value = lastReading ? lastReading.y : undefined;
+
+    return {
+      scorecard: {
+        ...scorecard,
+        value,
+      },
+      sparkline: {
+        ...sparkline,
+        data,
+      }
+    };
+  }
+}
+
+function ScorecardAndSparkline({scorecard, sparkline}) {
+  return (
+    <Scorecard {...scorecard}>
+      <Sparkline {...sparkline}/>
+    </Scorecard>
+  );
+}
+
+
+const selectCurrentBattery = makeHourlySparklineSelector('min_battery_pct', {
+  scorecard: {
     title: "Battery charge",
-    value: min_battery_pct,
     fractionDigits: 1,
     suffix: "%",
-  };
-}
+  },
+  sparkline: {
+    domain: {y: [0, 100]},
+  },
+});
 
-export const CurrentBattery = connect(selectCurrentBattery)(Scorecard);
+export const CurrentBattery = connect(selectCurrentBattery)(ScorecardAndSparkline);
 
 
-function selectCurrentWiFi(state) {
-  const lastReading = selectLastReading(state);
-  if (!lastReading) {
-    return {value: undefined};
-  }
-  const {avg_wifi_signal} = lastReading;
-
-  return {
+const selectCurrentWiFi = makeHourlySparklineSelector('avg_wifi_signal', {
+  scorecard: {
     title: "WiFi signal",
-    value: avg_wifi_signal,
     fractionDigits: 0,
-  };
-}
+  },
+  sparkline: {
+    domain: {y: [-127, -1]},
+  },
+});
 
-export const CurrentWiFi = connect(selectCurrentWiFi)(Scorecard);
+export const CurrentWiFi = connect(selectCurrentWiFi)(ScorecardAndSparkline);
