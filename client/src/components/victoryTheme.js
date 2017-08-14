@@ -41,8 +41,8 @@ const fontSize = 14;
 // *
 const padding = 8;
 const baseProps = {
-  width: 600,
-  height: 300,
+  // width: 600,
+  // height: 300,
   // padding: 50
 };
 // *
@@ -151,7 +151,10 @@ export default {
       negative: colors[0]
     }
   }, baseProps),
-  chart: baseProps,
+  chart: _assign({
+    width: 600,
+    height: 300,
+  }, baseProps),
   errorbar: _assign({
     style: {
       data: {
@@ -231,11 +234,14 @@ export default {
   }, baseProps),
   legend: {
     colorScale: colors,
+    gutter: 8,
+    orientation: "vertical",
     style: {
       data: {
-        type: "circle"
+        type: "square"
       },
-      labels: baseLabelStyles
-    }
+      labels: baseLabelStyles,
+    },
+    symbolSpacer: 4,
   }
 };

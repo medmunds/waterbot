@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   VictoryAxis, VictoryBar, VictoryChart, VictoryGroup,
-  VictoryTooltip, VictoryVoronoiContainer
+  VictoryLegend, VictoryTooltip, VictoryVoronoiContainer,
 } from 'victory';
 
 
@@ -28,10 +28,22 @@ export default function ComparisonChart({
     return `${xTickFormat(d.x)}\n${values.join('\n')}`
   }
 
+  const legendProps = {
+    data: series.map(({label}) => ({
+      name: label,
+    })),
+    theme: theme,
+    standalone: false,
+    width: 80,
+    height: series.length*18 + 2*8,
+    padding: 8,
+  };
+
   return (
     <VictoryChart
       containerComponent={
-        <VictoryVoronoiContainer dimension="x"
+        <VictoryVoronoiContainer
+          dimension="x"
           labels={tooltip}
           labelComponent={
             <VictoryTooltip
@@ -64,6 +76,10 @@ export default function ComparisonChart({
           />
         ))}
       </VictoryGroup>
+      <g transform="translate(450, 24)">
+        <rect width={legendProps.width} height={legendProps.height} fill="#ffffff" stroke="#E0E0E0"/>
+        <VictoryLegend {...legendProps}/>
+      </g>
     </VictoryChart>
   );
 }
