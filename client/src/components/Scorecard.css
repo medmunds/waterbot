@@ -3,8 +3,8 @@
   line-height: 32px;
 }
 
-.Scorecard--unit {
-  padding-left: 0.4em;
+.Scorecard--prefix,
+.Scorecard--suffix {
   opacity: 0.8;
   color: rgba(0, 0, 0, 0.54);
 }

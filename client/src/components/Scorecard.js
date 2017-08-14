@@ -34,23 +34,34 @@ export function Comparison({
 
 export default function Scorecard({
   value,
-  unitLabel,
+  prefix,
+  suffix,
   comparisonValue,
   comparisonLabel,
   fractionDigits=0,
   decreaseIsPositive,
   neutralChange,
+  title,
+  children,
 }) {
-  const formatter = new Intl.NumberFormat(undefined, {maximumFractionDigits: fractionDigits});
+  const formatter = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
 
   const comparisonProps = {
     value, comparisonValue, comparisonLabel, decreaseIsPositive, neutralChange};
 
   return (
     <div className="Scorecard">
-      <span className="Scorecard--value">{formatter.format(value)}</span>
-      <span className="Scorecard--unit">{unitLabel}</span>
+      {title ? <div className="Scorecard--title">{title}</div> : null}
+      <div>
+        {prefix ? <span className="Scorecard--prefix">{prefix}</span> : null}
+        <span className="Scorecard--value">{formatter.format(value)}</span>
+        {suffix ? <span className="Scorecard--suffix">{suffix}</span> : null}
+      </div>
       <Comparison {...comparisonProps}/>
+      {children}
     </div>
   );
 }

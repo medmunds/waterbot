@@ -138,7 +138,7 @@ export function selectLast24HoursScorecard(state) {
   return {
     value: totalUsageGals,
     fractionDigits: 1,
-    unitLabel: "gallons",
+    suffix: " gallons",
   };
 }
 
@@ -156,7 +156,7 @@ export function selectLast30DaysScorecard(state) {
 
   return {
     value: totalUsageGals,
-    unitLabel: "gallons",
+    suffix: " gallons",
     comparisonValue: lastYearUsage,
     comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
     decreaseIsPositive: true,
@@ -179,7 +179,7 @@ export function selectYearToDateScorecard(state) {
 
   return {
     value: totalUsageGals,
-    unitLabel: "gallons",
+    suffix: " gallons",
     comparisonValue: lastYearUsage,
     comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
     decreaseIsPositive: true,

@@ -10,3 +10,10 @@
 .chart > svg {
   /*max-height: 225px;*/
 }
+
+
+.current-info {
+  display: flex;
+  flex-flow: row wrap;
+  /*justify-content: space-between;*/
+}
