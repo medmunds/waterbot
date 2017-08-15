@@ -99,6 +99,24 @@ function mapStateToPropsYTD(state) {
       data[index].lastYear = row.usageGals;
     });
 
+  const averageYears = 3;
+  const averageStart = thisYearStart.clone().subtract(averageYears, 'year');
+  const averageEnd = lastYearEnd.clone();
+  Object.values(monthly)
+    .filter(row => (averageStart <= row.timestamp && row.timestamp <= averageEnd))
+    .forEach(row => {
+      const month = parseInt(row.timestampStr.slice(5), 10); // 1-based
+      const index = month - 1;
+      data[index] = data[index] || {x: month};
+      data[index].averageTotal = (data[index].averageTotal || 0) + row.usageGals;
+      data[index].averageN = (data[index].averageN || 0) + 1;
+    });
+  data.forEach(row => {
+    if (row.averageN && row.averageTotal !== undefined) {
+      row.average = row.averageTotal / row.averageN;
+    }
+  });
+
   return {
     data,
     xTickFormat: formatMonth,
@@ -106,8 +124,10 @@ function mapStateToPropsYTD(state) {
     start: 1,
     end: 12,
     series: [
-      {label: thisYearStart.format('YYYY'), valueKey: "thisYear"},
-      {label: lastYearStart.format('YYYY'), valueKey: "lastYear"},
+      {label: thisYearStart.format('YYYY'), valueKey: "thisYear", type: "bar"},
+      {label: lastYearStart.format('YYYY'), valueKey: "lastYear", type: "bar"},
+      // {label: `${averageYears}-year average`, valueKey: "average", type: "step"},
+      {label: `Avg ${averageStart.format('YYYY')}–${averageEnd.format('YY')}`, valueKey: "average", type: "step"},
     ],
   };
 }

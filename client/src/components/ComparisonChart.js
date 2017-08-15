@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  VictoryAxis, VictoryBar, VictoryChart, VictoryGroup,
+  VictoryAxis, VictoryBar, VictoryLine, VictoryChart, VictoryGroup,
   VictoryLegend, VictoryTooltip, VictoryVoronoiContainer,
 } from 'victory';
 
@@ -34,8 +34,8 @@ export default function ComparisonChart({
     })),
     theme: theme,
     standalone: false,
-    width: 80,
-    height: series.length*18 + 2*8,
+    width: 120,
+    height: series.length*19 + 2*8,
     padding: 8,
   };
 
@@ -65,12 +65,20 @@ export default function ComparisonChart({
         dependentAxis={true}
         tickCount={4}
       />
+      {series.filter(({type}) => type === "step").map(({label, valueKey}) => (
+        <VictoryLine
+          key={valueKey}
+          data={data}
+          y={d => d[valueKey]}
+          interpolation="step"
+        />
+      ))}
       <VictoryGroup
         offset={10}
       >
-        {series.map(({label, valueKey}) => (
+        {series.filter(({type}) => type === "bar").map(({label, valueKey}) => (
           <VictoryBar
-            key={label}
+            key={valueKey}
             data={data}
             y={d => d[valueKey] || 0 /* undefined breaks chart, so force to number */}
           />
