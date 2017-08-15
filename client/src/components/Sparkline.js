@@ -1,38 +1,29 @@
 import React from 'react';
-import {VictoryLine} from 'victory';
-import defaultTheme from './victoryTheme';
+import {
+  XYPlot, LineSeries, YAxis,
+} from 'react-vis';
+
+import './Sparkline.css';
 
 
 export default function Sparkline({
   data,
-  theme=defaultTheme,
   width=120,
   height=24,
-  ...props
+  ...props,
 }) {
-  const wrapperProps = {
-    width,
-    height,
-    style: {
-      borderLeft: "1px solid #E0E0E0",
-      boxSizing: "border-box",
-    },
-  };
-  const lineProps = {
-    data,
-    theme,
-    width,
-    height,
-    domainPadding: 1,
-    padding: 0,
-    style: {
-      data: {
-        strokeWidth: 1,
-      },
-    },
-    standalone: false,  // supply our own svg wrapper to avoid odd double-nesting and padding
-    ...props
-  };
+  // react-vis LineSeries doesn't handle missing data (https://github.com/uber/react-vis/issues/457)
+  data = data.filter(({y}) => (y !== undefined && y !== null));
 
-  return <svg {...wrapperProps}><VictoryLine {...lineProps}/></svg>;
+  return (
+    <XYPlot
+      width={width} height={height}
+      className="Sparkline"
+      margin={{left: 1, right: 1, top: 1, bottom: 1}}
+      {...props}
+    >
+      <YAxis tickTotal={0}/>
+      <LineSeries data={data} color="#4285F5"/>
+    </XYPlot>
+  );
 }

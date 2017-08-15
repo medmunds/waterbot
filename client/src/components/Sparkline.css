@@ -1,0 +1,9 @@
+.Sparkline .rv-xy-plot__series--line {
+  stroke-width: 1;
+}
+
+.Sparkline .rv-xy-plot__axis__line {
+  stroke-width: 1;
+  shape-rendering: crispedges;
+  stroke: rgba(0, 0, 0, 0.54);
+}

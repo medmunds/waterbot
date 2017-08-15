@@ -82,7 +82,7 @@ const selectCurrentBattery = makeHourlySparklineSelector('min_battery_pct', {
     suffix: "%",
   },
   sparkline: {
-    domain: {y: [0, 100]},
+    yDomain: [0, 100],
   },
 });
 
@@ -95,7 +95,7 @@ const selectCurrentWiFi = makeHourlySparklineSelector('avg_wifi_signal', {
     fractionDigits: 0,
   },
   sparkline: {
-    domain: {y: [-127, -1]},
+    yDomain: [-127, -1],
   },
 });
 
