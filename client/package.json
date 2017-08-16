@@ -11,11 +11,13 @@
     "react-scripts": "1.0.11",
     "react-vis": "^1.7.2",
     "redux": "^3.7.2",
-    "redux-thunk": "^2.2.0"
+    "redux-thunk": "^2.2.0",
+    "source-map-explorer": "^1.4.0"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "analyze": "source-map-explorer build/static/js/main.*",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
   }
