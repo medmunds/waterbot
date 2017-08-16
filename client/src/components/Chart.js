@@ -2,7 +2,9 @@ import find from 'lodash/find';
 import max from 'lodash/max';
 import React, {PureComponent} from 'react';
 import {
-  XYPlot, VerticalBarSeries, LineSeries, XAxis, YAxis, HorizontalGridLines,
+  XYPlot,
+  VerticalBarSeries, LineSeries, CustomSVGSeries,
+  XAxis, YAxis, HorizontalGridLines,
   DiscreteColorLegend, Crosshair,
 } from 'react-vis';
 
@@ -11,17 +13,38 @@ import './Chart.css';
 
 
 const seriesComponents = {
-  bar: VerticalBarSeries,
-  step: LineSeries,
+  bar: {component: VerticalBarSeries},
+  line: {component: LineSeries},
+  hash: {component: CustomSVGSeries, cleaner: hashDataCleaner},
 };
+
+function standardDataCleaner({data, valueKey}) {
+  // filter rows without valueKey?
+  return data.map(row => ({x: row.x, y: row[valueKey]}));
+}
+
+function hashDataCleaner(options) {
+  // can't pass this constant customComponent as a CustomSVGSeries prop,
+  // because CustomSVGSeries getInnerComponent is broken;
+  // workaround is to pass customComponent with every data point
+  const {color, fill, stroke} = options;
+  const hash = () => <rect x="-12" y="-1" width="24" height="2" stroke={stroke || color} fill={fill || color}/>;
+  return standardDataCleaner(options)
+    .map(row => ({
+      customComponent: hash,
+      ...row
+    }));
+}
+
 
 function seriesComponent({data, valueKey, type, ...props}) {
   // Function returning a component -- not a composable component
   // (because react-vis looks for components inheriting from its AbstractSeries as direct children of XYPlot)
-  const component = seriesComponents[type];
+  const {component, props: componentProps, cleaner=standardDataCleaner} = seriesComponents[type];
   return React.createElement(component, {
+    ...componentProps,
     key: valueKey,
-    data: data.map(row => ({x: row.x, y: row[valueKey]})),
+    data: cleaner({data, valueKey, type, ...props}),
     ...props
   });
 }
@@ -65,11 +88,6 @@ export default class Chart extends PureComponent {
       width,
       height,
     } = this.props;
-    let {showLegend} = this.props;
-
-    if (showLegend === undefined) {
-      showLegend = series.length > 1;
-    }
 
     const yMax = max(data.map(row => max(series.map(({valueKey}) => row[valueKey])))) || 0;
     const yDomain = [0, Math.max(yMax, 20)];  // ensure reasonable y even with missing data
@@ -97,12 +115,7 @@ export default class Chart extends PureComponent {
           ...s,
           onNearestX: i === 0 ? this._onNearestX : undefined,
         }))}
-        {showLegend
-          ? <div className="Chart--legend"><DiscreteColorLegend
-            items={series.map(({label, color, opacity}) => ({title: label, color, opacity}))}
-          /></div>
-          : null
-        }
+        {this._renderLegend()}
         {this._renderTooltip()}
       </XYPlot>
     );
@@ -115,6 +128,23 @@ export default class Chart extends PureComponent {
 
   _onMouseLeave() {
     this.setState({tooltipDatum: undefined});
+  }
+
+  _renderLegend() {
+    // default is to show legend if there's more than one series
+    const {showLegend, series} = this.props;
+    const legendSeries = series.filter(s => !s.hideLegend);
+    if (showLegend || (showLegend === undefined && legendSeries.length > 1)) {
+      return (
+        <div className="Chart--legend">
+          <DiscreteColorLegend
+            items={legendSeries.map(
+              ({label, legendLabel, color, opacity}) =>
+                ({title: legendLabel || label, color, opacity}))}
+          />
+        </div>
+      )
+    }
   }
 
   _renderTooltip() {
