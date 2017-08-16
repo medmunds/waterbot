@@ -1,0 +1,44 @@
+.Section {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+
+  padding: 12px;
+}
+
+.Section--heading,
+.Section--left,
+.Section--right {
+  box-sizing: border-box;
+  margin: 12px;
+}
+
+.Section--heading {
+  flex: 1 0 100%;
+
+  margin: -12px -12px 12px;
+  padding: 24px;
+  background-color: #1565C0;
+  color: white;
+}
+
+.Section--title,
+.Section--buttons {
+  display: inline-block;
+}
+.Section--buttons {
+  margin-left: auto;
+}
+
+.Section--left {
+  flex: 0 0 220px;
+}
+
+.Section--right {
+  flex: 1 1;
+  min-width: 500px;
+}
+
+.Section--left > *:not(:first-child) {
+  margin-top: 24px;
+}

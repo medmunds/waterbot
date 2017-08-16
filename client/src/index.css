@@ -10,22 +10,18 @@ body {
 }
 
 h1, h2 {
-  padding: 24px;
   margin: 0;
+  color: rgba(0, 0, 0, 0.87);
 }
 
 h1 {
-  color: #1565C0;
   font-size: 20px;
   font-weight: 500; /* medium */
 }
 
 h2 {
-  background-color: #1565C0;
-  color: white;
   font-size: 16px;
   font-weight: 400; /* regular */
-  line-height: 24px;
 }
 
 b, strong, th {

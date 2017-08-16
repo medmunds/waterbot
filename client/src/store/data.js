@@ -136,6 +136,7 @@ export function selectLast24HoursScorecard(state) {
     .reduce((total, row) => total + row.usage_cuft, 0);
 
   return {
+    title: "Last 24 hours",
     value: totalUsageGals,
     fractionDigits: 1,
     suffix: " gallons",

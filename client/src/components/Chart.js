@@ -4,7 +4,7 @@ import find from 'lodash/find';
 import max from 'lodash/max';
 import React, {PureComponent} from 'react';
 import {
-  XYPlot,
+  FlexibleWidthXYPlot,
   VerticalBarSeries, LineSeries, CustomSVGSeries,
   XAxis, YAxis, HorizontalGridLines,
   DiscreteColorLegend, Crosshair,
@@ -72,9 +72,8 @@ export default class Chart extends PureComponent {
     yTickFormat: formatNumberSkipZero,
     yTickCount: 4,
     yTooltipFormat: formatNumber,
-    width: 600,
-    height: 300,
-    margin: {left: 80, right: 0, top: 10, bottom: 40},
+    height: 280,
+    margin: {left: 50, right: 1, top: 10, bottom: 40},
   };
 
   render() {
@@ -85,7 +84,6 @@ export default class Chart extends PureComponent {
       xTickFormat,
       yTickFormat,
       yTickCount,
-      width,
       height,
       margin,
     } = this.props;
@@ -96,9 +94,9 @@ export default class Chart extends PureComponent {
     const xPadding = xType === "ordinal" ? undefined : 10;
 
     return (
-      <XYPlot
+      <FlexibleWidthXYPlot
         className="Chart"
-        width={width} height={height}
+        height={height}
         margin={margin}
         xType={xType}
         xPadding={xPadding}
@@ -123,7 +121,7 @@ export default class Chart extends PureComponent {
         />
         {this._renderLegend()}
         {this._renderTooltip()}
-      </XYPlot>
+      </FlexibleWidthXYPlot>
     );
   }
 

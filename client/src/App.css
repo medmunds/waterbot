@@ -1,19 +1,2 @@
 .App {
 }
-
-.Scorecard, .chart {
-  display: inline-block;
-  vertical-align: top;
-  padding: 24px;
-}
-
-.chart > svg {
-  /*max-height: 225px;*/
-}
-
-
-.current-info {
-  display: flex;
-  flex-flow: row wrap;
-  /*justify-content: space-between;*/
-}
