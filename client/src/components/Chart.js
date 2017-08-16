@@ -1,3 +1,5 @@
+import './Chart.css';
+
 import find from 'lodash/find';
 import max from 'lodash/max';
 import React, {PureComponent} from 'react';
@@ -7,9 +9,6 @@ import {
   XAxis, YAxis, HorizontalGridLines,
   DiscreteColorLegend, Crosshair,
 } from 'react-vis';
-
-import 'react-vis/dist/style.css';
-import './Chart.css';
 
 
 const seriesComponents = {
@@ -75,6 +74,7 @@ export default class Chart extends PureComponent {
     yTooltipFormat: formatNumber,
     width: 600,
     height: 300,
+    margin: {left: 80, right: 0, top: 10, bottom: 40},
   };
 
   render() {
@@ -87,34 +87,40 @@ export default class Chart extends PureComponent {
       yTickCount,
       width,
       height,
+      margin,
     } = this.props;
 
     const yMax = max(data.map(row => max(series.map(({valueKey}) => row[valueKey])))) || 0;
     const yDomain = [0, Math.max(yMax, 20)];  // ensure reasonable y even with missing data
 
+    const xPadding = xType === "ordinal" ? undefined : 10;
+
     return (
       <XYPlot
         className="Chart"
         width={width} height={height}
+        margin={margin}
         xType={xType}
+        xPadding={xPadding}
         yDomain={yDomain}
         onMouseLeave={this._onMouseLeave}
       >
-        <XAxis
-          tickFormat={xTickFormat}
-          tickSize={0}
-        />
-        <YAxis
-          tickFormat={yTickFormat}
-          tickTotal={yTickCount}
-          tickSize={0}
-        />
         <HorizontalGridLines tickTotal={yTickCount}/>
         {series.map((s, i) => seriesComponent({
           data,
           ...s,
           onNearestX: i === 0 ? this._onNearestX : undefined,
         }))}
+        <XAxis
+          tickFormat={xTickFormat}
+          tickSize={0}
+        />
+        <YAxis
+          style={{line: {stroke: "none"}}}
+          tickFormat={yTickFormat}
+          tickTotal={yTickCount}
+          tickSize={0}
+        />
         {this._renderLegend()}
         {this._renderTooltip()}
       </XYPlot>
@@ -136,13 +142,11 @@ export default class Chart extends PureComponent {
     const legendSeries = series.filter(s => !s.hideLegend);
     if (showLegend || (showLegend === undefined && legendSeries.length > 1)) {
       return (
-        <div className="Chart--legend">
-          <DiscreteColorLegend
-            items={legendSeries.map(
-              ({label, legendLabel, color, opacity}) =>
-                ({title: legendLabel || label, color, opacity}))}
-          />
-        </div>
+        <DiscreteColorLegend
+          items={legendSeries.map(
+            ({label, legendLabel, color, opacity}) =>
+              ({title: legendLabel || label, color, opacity}))}
+        />
       )
     }
   }

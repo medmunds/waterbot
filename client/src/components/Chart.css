@@ -1,50 +1,183 @@
-.Chart {
+/* adapted from default react-vis/dist/style.css; updated to Material-ish */
+
+.Chart.rv-xy-plot { /* container for svg and regular DOM */
   position: relative;
 }
 
-.Chart--legend {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: #fff;
-  color: rgba(0, 0, 0, 0.54);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.rv-discrete-color-legend-item {
-  padding: 2px 10px;
-}
-
-/* hack -- need to determine bar vs line series types */
-.rv-discrete-color-legend-item:not(:last-child) .rv-discrete-color-legend-item__color {
-  height: 14px;
-}
-
-
-.Chart .rv-xy-plot__inner {
+.Chart .rv-xy-plot__inner { /* the svg */
+  display: block;
   shape-rendering: crispedges;
 }
-.Chart .rv-xy-plot__series--line {
-  shape-rendering: auto;
-}
+
 .Chart .rv-xy-plot__axis__line {
-  stroke: none;
+  fill: none;
+  stroke-width: 1;
+  stroke: rgba(0, 0, 0, 0.12);
+  /*stroke: rgba(0, 0, 0, 0.54);*/
 }
+
+.Chart .rv-xy-plot__axis__tick__line {
+  stroke: rgba(0, 0, 0, 0.12);
+}
+
+.Chart .rv-xy-plot__axis__tick__text {
+  fill: rgba(0, 0, 0, 0.54);
+}
+
+.Chart .rv-xy-plot__axis__title text {
+  fill: rgba(0, 0, 0, 0.87);
+}
+
 .Chart .rv-xy-plot__grid-lines__line {
   stroke: rgba(0, 0, 0, 0.12);
 }
 
+.Chart .rv-xy-plot__series,
+.Chart .rv-xy-plot__series path {
+  pointer-events: all;
+}
+
+.Chart .rv-xy-plot__series--line {
+  fill: none;
+  stroke: #000;
+  stroke-width: 2px;
+  shape-rendering: auto;
+}
+
+.Chart .rv-crosshair {
+  position: absolute;
+  pointer-events: none;
+
+  transition:
+    left 0.1s ease-in-out,
+    right 0.1s ease-in-out;
+}
+
+.Chart .rv-crosshair__line {
+  /*background: rgba(0, 0, 0, 0.54);*/
+  background: #1565C0;
+  width: 1px;
+}
+
+.Chart .rv-crosshair__inner {
+  position: absolute;
+  text-align: left;
+  top: 0;
+}
+
+.Chart .rv-crosshair__inner--left {
+  right: 1px;
+}
+
+.Chart .rv-crosshair__inner--right {
+  left: 1px;
+}
+
+.Chart .rv-discrete-color-legend {
+  box-sizing: border-box;
+  overflow-y: auto;
+
+  padding: 4px 0;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.54);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.Chart .rv-discrete-color-legend.horizontal {
+  white-space: nowrap
+}
+
+.Chart .rv-discrete-color-legend-item {
+  /*color: rgba(0, 0, 0, 0.54);*/
+  border-radius: 1px;
+  padding: 2px 12px;
+}
+
+.Chart .rv-discrete-color-legend-item.horizontal {
+  display: inline-block
+}
+
+.Chart .rv-discrete-color-legend-item.horizontal .rv-discrete-color-legend-item__title {
+  margin-left: 0;
+  display: block;
+}
+
+.Chart .rv-discrete-color-legend-item__color {
+  background: #dcdcdc;
+  display: inline-block;
+  height: 2px;
+  vertical-align: middle;
+  width: 14px;
+}
+
+/* hack -- need to determine bar vs line series types */
+.Chart .rv-discrete-color-legend-item:not(:last-child) .rv-discrete-color-legend-item__color {
+  height: 14px;
+}
+
+.Chart .rv-discrete-color-legend-item__title {
+  margin-left: 8px;
+}
+
+.Chart .rv-discrete-color-legend-item.disabled {
+  color: rgba(0, 0, 0, 0.12);
+}
+
+.Chart .rv-discrete-color-legend-item.clickable {
+  cursor: pointer;
+}
+
+.Chart .rv-discrete-color-legend-item.clickable:hover {
+  background: #E3F2FD;
+}
+
+.Chart .rv-legend-titles {
+  height: 16px;
+  position: relative;
+}
+
+.Chart .rv-legend-titles__left,
+.Chart .rv-legend-titles__right,
+.Chart .rv-legend-titles__center {
+  position: absolute;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.Chart .rv-legend-titles__center {
+  display: block;
+  text-align: center;
+  width: 100%;
+}
+
+.Chart .rv-legend-titles__right {
+  right: 0;
+}
+
+
+/*
+ * Tooltip (crosshair custom content)
+ */
 
 .Chart--tooltip {
-  padding: 4px;
-  background: rgba(255, 255, 255, 0.97);
-  color: rgba(0, 0, 0, 0.87);
-  border: 1px solid rgba(0, 0, 0, 0.12); /* match to rv-crosshair__line background below */
+  padding: 4px 12px;
+  border-spacing: 0;
+
+  background: #fff;
+  box-shadow:
+    0 2px 2px 0 rgba(0, 0, 0, 0.14),
+    0 1px 5px 0 rgba(0, 0, 0, 0.12),
+    0 3px 1px -2px rgba(0, 0, 0, 0.2);
 }
 
 .Chart--tooltip th,
 .Chart--tooltip td {
   white-space: nowrap;
+  padding: 4px;
 }
 
 .Chart--tooltip th {
@@ -54,22 +187,4 @@
 .Chart--tooltip td {
   border-top: 1px solid rgba(0, 0, 0, 0.12);
   text-align: right;
-  padding: 2px 4px 0;
-}
-
-.Chart .rv-crosshair {
-  transition:
-    left 0.1s ease-in-out,
-    right 0.1s ease-in-out;
-}
-
-.Chart .rv-crosshair__line {
-  background: rgba(0, 0, 0, 0.12); /* match to .Chart-tooltip border above */
-}
-
-.Chart .rv-crosshair__inner--right {
-    left: 0; /* 4px; */
-}
-.Chart .rv-crosshair__inner--left {
-    right: 0; /* 4px; */
 }

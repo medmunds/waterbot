@@ -1,5 +1,6 @@
 .Sparkline .rv-xy-plot__series--line {
   stroke-width: 1;
+  fill: none;
 }
 
 .Sparkline .rv-xy-plot__axis__line {
