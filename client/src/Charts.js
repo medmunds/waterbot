@@ -21,6 +21,11 @@ function formatHour(ts, i) {
   }
 }
 
+function formatFullHour(ts) {
+  const t = moment(ts);
+  return t.format('ddd M/D ha');
+}
+
 function formatDay(ts) {
   // ts is a Date or int timestamp
   const t = moment(ts);
@@ -28,9 +33,19 @@ function formatDay(ts) {
   return t.format(format);
 }
 
+function formatFullDay(ts) {
+  const t = moment(ts);
+  return t.format('dddd, MMMM D');
+}
+
 function formatMonth(m) {
   // m is 0-based month
   return moment({month: m}).format('MMM');
+}
+
+function formatFullMonth(m) {
+  // m is 0-based month
+  return moment({month: m}).format('MMMM');
 }
 
 
@@ -46,6 +61,7 @@ function mapStateToPropsDay(state) {
     data,
     xTickFormat: formatHour,
     xType: "time",
+    xTooltipFormat: formatFullHour,
     series: [
       {label: "gallons", valueKey: "y", type: "bar", color: "#4285F5"},
     ],
@@ -66,6 +82,7 @@ function mapStateToPropsMonth(state) {
   return {
     data,
     xTickFormat: formatDay,
+    xTooltipFormat: formatFullDay,
     xType: "time",
     series: [
       {label: "gallons", valueKey: "y", type: "bar", color: "#4285F5"},
@@ -129,6 +146,7 @@ function mapStateToPropsYTD(state) {
   return {
     data,
     xTickFormat: formatMonth,
+    xTooltipFormat: formatFullMonth,
     series: [
       {label: lastYearStart.format('YYYY'), valueKey: "lastYear", type: "bar",
         cluster: "lastYear", color: "#BBDEFB"},
@@ -136,7 +154,9 @@ function mapStateToPropsYTD(state) {
         cluster: "thisYear", color: "#4285F5"},
       {label: "(projected)", valueKey: "thisYearProjected", type: "bar",
         cluster: "thisYear", color: "rgba(66,133,245,0.6)"},
-      {label: `Avg ${averageStart.format('YYYY')}–${averageEnd.format('YY')}`, valueKey: "average", type: "step",
+      {label: `Avg ${averageStart.format('YYYY')}–${averageEnd.format('YY')}`,
+        tooltipLabel: `${averageYears}-year average`,
+        valueKey: "average", type: "step",
         color: "#1565C0"},
     ],
   };

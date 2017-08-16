@@ -7,7 +7,8 @@
   top: 0;
   right: 0;
   background: #fff;
-  border: 1px solid #e0e0e0;
+  color: rgba(0, 0, 0, 0.54);
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
 .rv-discrete-color-legend-item {
@@ -31,4 +32,44 @@
 }
 .Chart .rv-xy-plot__grid-lines__line {
   stroke: rgba(0, 0, 0, 0.12);
+}
+
+
+.Chart--tooltip {
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.97);
+  color: rgba(0, 0, 0, 0.87);
+  border: 1px solid rgba(0, 0, 0, 0.12); /* match to rv-crosshair__line background below */
+}
+
+.Chart--tooltip th,
+.Chart--tooltip td {
+  white-space: nowrap;
+}
+
+.Chart--tooltip th {
+  text-align: center;
+}
+
+.Chart--tooltip td {
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  text-align: right;
+  padding: 2px 4px 0;
+}
+
+.Chart .rv-crosshair {
+  transition:
+    left 0.1s ease-in-out,
+    right 0.1s ease-in-out;
+}
+
+.Chart .rv-crosshair__line {
+  background: rgba(0, 0, 0, 0.12); /* match to .Chart-tooltip border above */
+}
+
+.Chart .rv-crosshair__inner--right {
+    left: 0; /* 4px; */
+}
+.Chart .rv-crosshair__inner--left {
+    right: 0; /* 4px; */
 }
