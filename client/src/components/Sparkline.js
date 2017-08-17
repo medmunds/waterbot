@@ -1,7 +1,8 @@
 import React from 'react';
-import {
-  XYPlot, LineSeries, YAxis,
-} from 'react-vis';
+// import {XYPlot, LineSeries, YAxis} from 'react-vis';
+import LineSeries from "react-vis/es/plot/series/line-series";
+import XYPlot from "react-vis/es/plot/xy-plot";
+import YAxis from "react-vis/es/plot/axis/y-axis";
 
 import './Sparkline.css';
 

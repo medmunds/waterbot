@@ -3,12 +3,24 @@ import './Chart.css';
 import find from 'lodash/find';
 import max from 'lodash/max';
 import React, {PureComponent} from 'react';
-import {
-  FlexibleWidthXYPlot,
-  VerticalBarSeries, LineSeries, CustomSVGSeries,
-  XAxis, YAxis, HorizontalGridLines, VerticalGridLines,
-  DiscreteColorLegend, Crosshair,
-} from 'react-vis';
+
+import {FlexibleWidthXYPlot} from "react-vis/es/make-vis-flexible";
+import Crosshair from "react-vis/es/plot/crosshair";
+import CustomSVGSeries from "react-vis/es/plot/series/custom-svg-series";
+import DiscreteColorLegend from "react-vis/es/legends/discrete-color-legend";
+import HorizontalGridLines from "react-vis/es/plot/horizontal-grid-lines";
+import LineSeries from "react-vis/es/plot/series/line-series";
+import VerticalBarSeries from "react-vis/es/plot/series/vertical-bar-series";
+import VerticalGridLines from "react-vis/es/plot/vertical-grid-lines";
+import XAxis from "react-vis/es/plot/axis/x-axis";
+import YAxis from "react-vis/es/plot/axis/y-axis";
+// import {
+//   FlexibleWidthXYPlot,
+//   VerticalBarSeries, LineSeries, CustomSVGSeries,
+//   XAxis, YAxis, HorizontalGridLines, VerticalGridLines,
+//   DiscreteColorLegend, Crosshair,
+// } from 'react-vis';
+
 
 
 const seriesComponents = {
