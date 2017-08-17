@@ -18,6 +18,26 @@ const bigquery = BigQuery({
 
 
 const reports = {
+  recent: {
+    query: `
+      #standardSQL
+      SELECT
+        ROUND(usage_cuft, 1) AS usage_cuft,
+        ROUND(current_reading_cuft, 1) AS current_reading_cuft,
+        UNIX_SECONDS(timestamp) AS timestamp,
+        period_sec,
+        ROUND(battery_pct, 2) AS battery_pct,
+        ROUND(battery_v, 1) AS battery_v,
+        wifi_signal
+      FROM \`${tableId}\`
+      WHERE
+        \`${tableId}\`.timestamp >= @start_timestamp
+        AND device_id = @device_id
+      ORDER BY \`${tableId}\`.timestamp ASC
+      ;`,
+    start_time: (now) => moment(now).startOf('day').subtract(14, 'days'),
+    cache_seconds: 5 * 60,
+  },
   hourly: {
     query: `
       #standardSQL
@@ -26,7 +46,7 @@ const reports = {
         ROUND(SUM(usage_cuft), 1) AS usage_cuft,
         COUNT(*) AS num_readings,
         ROUND(MAX(current_reading_cuft), 1) AS last_reading_cuft,
-        MAX(timestamp) AS last_reading_timestamp,
+        UNIX_SECONDS(MAX(timestamp)) AS last_reading_timestamp,
         ROUND(MIN(battery_pct), 2) AS min_battery_pct,
         ROUND(MIN(battery_v), 1) AS min_battery_v,
         ROUND(AVG(wifi_signal), 1) AS avg_wifi_signal
