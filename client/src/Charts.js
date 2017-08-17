@@ -22,9 +22,9 @@ function formatHour(ts, i) {
   }
 }
 
-function formatFullHour(ts) {
+function formatTimestamp(ts) {
   const t = moment(ts);
-  return t.format('ddd M/D ha');
+  return t.format('llll');
 }
 
 function formatDay(ts) {
@@ -50,11 +50,18 @@ function formatFullMonth(m) {
 
 
 function mapStateToPropsDay(state) {
-  const {data: {hourly}, ui: {day: {endTimestamp}}} = state;
-  const range = moment.duration(24, 'hours').beforeMoment(moment(endTimestamp).endOf('hour'));
-  const data = Object.values(hourly)
-    .filter(row => range.contains(row.timestamp))
-    .map(row => ({x: row.timestamp, y: row.usageGals}));
+  const {data: {recent}, ui: {day: {endTimestamp}}} = state;
+  const end = moment(endTimestamp).endOf('hour');
+  const range = moment.duration(24, 'hours').beforeMoment(end);
+  const data = recent
+    .filter(row => range.contains(row.timestamp) && row.period_sec > 0)
+    .map(row => ({
+      x: row.timestamp,
+      y: row.usageGals,
+      // FUTURE: use histogram range instead...
+      // x0: moment(row.timestamp).subtract(row.period_sec, 'seconds'),
+      // y: 60 * row.usageGals / row.period_sec, // gallons per minute
+    }));
 
   const xDomain = [range.start(), range.end()];
   const xMinorTickValues = range.toArray('hours');
@@ -69,9 +76,11 @@ function mapStateToPropsDay(state) {
     xMajorTickValues,
     xGridValues,
     xType: "time",
-    xTooltipFormat: formatFullHour,
+    xTooltipFormat: formatTimestamp,
+    // FUTURE: yTickFormat: formatNumber1Digit,
     series: [
       {label: "gallons", valueKey: "y", type: "bar", color: "#4285F5"},
+      // FUTURE: {label: "GPM", valueKey: "y", type: "bar", color: "#4285F5"},
     ],
   };
 }

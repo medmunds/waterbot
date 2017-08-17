@@ -2,15 +2,13 @@ import moment from 'moment';
 import React from 'react';
 import {connect} from 'react-redux';
 import last from 'lodash/last';
-import max from 'lodash/max';
 import Scorecard from "./components/Scorecard";
 import Sparkline from "./components/Sparkline";
 
 
 function selectLastReading(state) {
-  const {data: {hourly}} = state;
-  const lastHourStr = max(Object.keys(hourly));
-  return lastHourStr ? hourly[lastHourStr] : undefined;
+  const {data: {recent}} = state;
+  return last(recent);
 }
 
 function selectCurrentMeter(state) {
@@ -19,11 +17,11 @@ function selectCurrentMeter(state) {
     return {value: undefined, lastReadingTime: undefined};
   }
 
-  const {last_reading_cuft, last_reading_timestamp: {value: lastReadingTimeStr}} = lastReading;
-  const lastReadingTime = moment.utc(lastReadingTimeStr, 'YYYY-MM-DD HH:mm:ss.SSS').local();
+  const {current_reading_cuft, timestamp} = lastReading;
+  const lastReadingTime = moment.unix(timestamp);
 
   return {
-    value: last_reading_cuft,
+    value: current_reading_cuft,
     fractionDigits: 1,
     suffix: " cu ft",
     lastReadingTime,
@@ -45,11 +43,10 @@ function makeHourlySparklineSelector(valueKey, props) {
   const {scorecard, sparkline} = props;
 
   return function select(state) {
-    const {data: {hourly}} = state;
-    const data = Object.keys(hourly)
-      .sort()
-      .map(key => ({x: hourly[key].timestamp, y: hourly[key][valueKey]}))
-      .filter(({y}) => y !== undefined); //  && y !== null
+    const {data: {recent}} = state;
+    const data = recent
+      .map(row => ({x: row.timestamp, y: row[valueKey]}))
+      .filter(({y}) => y !== undefined && y !== null);
     const lastReading = last(data);
     const value = lastReading ? lastReading.y : undefined;
 
@@ -75,7 +72,7 @@ function ScorecardAndSparkline({scorecard, sparkline}) {
 }
 
 
-const selectCurrentBattery = makeHourlySparklineSelector('min_battery_pct', {
+const selectCurrentBattery = makeHourlySparklineSelector('battery_pct', {
   scorecard: {
     title: "Battery charge",
     fractionDigits: 1,
@@ -89,7 +86,7 @@ const selectCurrentBattery = makeHourlySparklineSelector('min_battery_pct', {
 export const CurrentBattery = connect(selectCurrentBattery)(ScorecardAndSparkline);
 
 
-const selectCurrentWiFi = makeHourlySparklineSelector('avg_wifi_signal', {
+const selectCurrentWiFi = makeHourlySparklineSelector('wifi_signal', {
   scorecard: {
     title: "WiFi signal",
     fractionDigits: 0,

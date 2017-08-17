@@ -52,7 +52,6 @@ const formatNumber = new Intl.NumberFormat(undefined, {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 }).format;
-const formatNumberSkipZero = (n) => (n === 0 ? undefined : formatNumber(n));
 
 
 export default class Chart extends PureComponent {
@@ -69,9 +68,9 @@ export default class Chart extends PureComponent {
   static defaultProps = {
     xType: "ordinal",
     xTickFormat: formatNumber,
-    yTickFormat: formatNumberSkipZero,
+    yTickFormat: formatNumber,
     yTickCount: 4,
-    yTooltipFormat: formatNumber,
+    ySkipZero: true,
     height: 280,
     margin: {left: 50, right: 1, top: 10, bottom: 40},
   };
@@ -88,12 +87,14 @@ export default class Chart extends PureComponent {
       xGridValues,
       yTickFormat,
       yTickCount,
+      ySkipZero,
       height,
       margin,
     } = this.props;
 
     const yMax = max(data.map(row => max(series.map(({valueKey}) => row[valueKey])))) || 0;
-    const yDomain = [0, Math.max(yMax, 20)];  // ensure reasonable y even with missing data
+    const yDomain = [0, Math.max(yMax, 5)];  // ensure reasonable y even with missing data
+    const yFormat = ySkipZero ? (y) => (y === 0 ? undefined : yTickFormat(y)) : yTickFormat;
 
     const xTickSize = xMinorTickValues ? 5 : 0;
     const xMajorTickFormat = xMajorTickValues
@@ -125,7 +126,7 @@ export default class Chart extends PureComponent {
         />
         <YAxis
           style={{line: {stroke: "none"}}}
-          tickFormat={yTickFormat}
+          tickFormat={yFormat}
           tickTotal={yTickCount}
           tickSize={0}
         />

@@ -16,6 +16,7 @@ const FORMAT_MONTH = 'YYYY-MM';
 
 
 const initialState = {
+  recent: [],
   hourly: {}, // map 'YYYY-MM-DD HH' --> {usageGals, wifiSignal, batteryPct}
   daily: {}, // map 'YYYY-MM-DD' --> {usageGals}
   monthly: {}, // map 'YYYY-MM' --> {usageGals}
@@ -67,7 +68,8 @@ export function fetchData(reportType) {
 
 export function refreshAll() {
   return function(dispatch) {
-    dispatch(fetchData('hourly'));
+    dispatch(fetchData('recent'));
+    // dispatch(fetchData('hourly'));
     dispatch(fetchData('daily'));
     dispatch(fetchData('monthly'));
   };
@@ -93,6 +95,14 @@ const REPORTS = {
 export const VALID_REPORT_TYPES = Object.keys(REPORTS);
 
 function processReportData(reportType, data) {
+  if (reportType === 'recent') {
+    data.forEach(row => {
+      row.timestamp = moment.unix(row.timestamp);
+      row.usageGals = row.usage_cuft * GALLONS_PER_CUFT;
+    });
+    return data;
+  }
+
   const {timestampField, timestampFormat} = REPORTS[reportType];
   return data.reduce((processed, row) => {
     const timestampStr = row[timestampField];
