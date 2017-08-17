@@ -1,4 +1,5 @@
 import moment from 'moment';
+import 'twix'; // extends moment
 import React from 'react';
 import {connect} from 'react-redux';
 
@@ -29,8 +30,7 @@ function formatFullHour(ts) {
 function formatDay(ts) {
   // ts is a Date or int timestamp
   const t = moment(ts);
-  const format = t.date() === 1 ? 'MMM D' : 'D';
-  return t.format(format);
+  return t.format('MMM D');
 }
 
 function formatFullDay(ts) {
@@ -51,15 +51,23 @@ function formatFullMonth(m) {
 
 function mapStateToPropsDay(state) {
   const {data: {hourly}, ui: {day: {endTimestamp}}} = state;
-  const end = moment(endTimestamp).endOf('hour');
-  const start = end.clone().startOf('hour').subtract(24, 'hours');
+  const range = moment.duration(24, 'hours').beforeMoment(moment(endTimestamp).endOf('hour'));
   const data = Object.values(hourly)
-    .filter(row => (start <= row.timestamp && row.timestamp <= end))
+    .filter(row => range.contains(row.timestamp))
     .map(row => ({x: row.timestamp, y: row.usageGals}));
+
+  const xDomain = [range.start(), range.end()];
+  const xMinorTickValues = range.toArray('hours');
+  const xMajorTickValues = xMinorTickValues.filter(d => d.hour() % 3 === 0);
+  const xGridValues = xMajorTickValues.filter(d => d.hour() === 0);
 
   return {
     data,
+    xDomain,
     xTickFormat: formatHour,
+    xMinorTickValues,
+    xMajorTickValues,
+    xGridValues,
     xType: "time",
     xTooltipFormat: formatFullHour,
     series: [
@@ -73,15 +81,21 @@ export const ChartLast24Hours = connect(mapStateToPropsDay)(Chart);
 
 function mapStateToPropsMonth(state) {
   const {data: {daily}, ui: {month: {endTimestamp}}} = state;
-  const end = moment(endTimestamp).endOf('day');
-  const start = end.clone().startOf('day').subtract(30, 'days');
+  const range = moment.duration(30, 'days').beforeMoment(endTimestamp, {allDay: true});
   const data = Object.values(daily)
-    .filter(row => (start <= row.timestamp && row.timestamp <= end))
+    .filter(row => range.contains(row.timestamp))
     .map(row => ({x: row.timestamp, y: row.usageGals}));
+
+  const xDomain = [range.start(), range.end()];
+  const xMinorTickValues = range.toArray('days').filter(d => d.day() === 0); // sundays
+  const xGridValues = range.toArray('months').map(d => d.subtract(11, 'hours')); // put grid between days
 
   return {
     data,
+    xDomain,
     xTickFormat: formatDay,
+    xMinorTickValues,
+    xGridValues,
     xTooltipFormat: formatFullDay,
     xType: "time",
     series: [
@@ -145,6 +159,7 @@ function mapStateToPropsYTD(state) {
 
   return {
     data,
+    xDomain: data.map(row => row.x), // ordinal axis, so must include each specific point
     xTickFormat: formatMonth,
     xTooltipFormat: formatFullMonth,
     series: [

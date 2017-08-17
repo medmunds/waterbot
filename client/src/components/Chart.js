@@ -6,7 +6,7 @@ import React, {PureComponent} from 'react';
 import {
   FlexibleWidthXYPlot,
   VerticalBarSeries, LineSeries, CustomSVGSeries,
-  XAxis, YAxis, HorizontalGridLines,
+  XAxis, YAxis, HorizontalGridLines, VerticalGridLines,
   DiscreteColorLegend, Crosshair,
 } from 'react-vis';
 
@@ -81,7 +81,11 @@ export default class Chart extends PureComponent {
       data,
       series,
       xType,
+      xDomain,
       xTickFormat,
+      xMinorTickValues,
+      xMajorTickValues,
+      xGridValues,
       yTickFormat,
       yTickCount,
       height,
@@ -91,7 +95,10 @@ export default class Chart extends PureComponent {
     const yMax = max(data.map(row => max(series.map(({valueKey}) => row[valueKey])))) || 0;
     const yDomain = [0, Math.max(yMax, 20)];  // ensure reasonable y even with missing data
 
-    const xPadding = xType === "ordinal" ? undefined : 10;
+    const xTickSize = xMinorTickValues ? 5 : 0;
+    const xMajorTickFormat = xMajorTickValues
+      ? (x) => (find(xMajorTickValues, x) ? xTickFormat(x) : undefined)
+      : xTickFormat;
 
     return (
       <FlexibleWidthXYPlot
@@ -99,19 +106,22 @@ export default class Chart extends PureComponent {
         height={height}
         margin={margin}
         xType={xType}
-        xPadding={xPadding}
+        xDomain={xDomain}
         yDomain={yDomain}
         onMouseLeave={this._onMouseLeave}
       >
         <HorizontalGridLines tickTotal={yTickCount}/>
+        {xGridValues ? <VerticalGridLines tickValues={xGridValues}/> : null}
         {series.map((s, i) => seriesComponent({
           data,
           ...s,
           onNearestX: i === 0 ? this._onNearestX : undefined,
         }))}
         <XAxis
-          tickFormat={xTickFormat}
-          tickSize={0}
+          tickFormat={xMajorTickFormat}
+          tickSizeInner={0}
+          tickSizeOuter={xTickSize}
+          tickValues={xMinorTickValues}
         />
         <YAxis
           style={{line: {stroke: "none"}}}
