@@ -1,6 +1,6 @@
-const blue400 = "#4285F5";
-const blue100 = "#BBDEFB";
-const blue800 = "#1565C0";
+const lightBlue500 = "#03A9F4";
+const lightBlue100 = "#B3E5FC";
+const lightBlue800 = "#0277BD";
 
 // const grey300 = "#E0E0E0";
 // const grey700 = "#616161";
@@ -15,7 +15,7 @@ const blue800 = "#1565C0";
 // const padding = 8;
 
 export const chartColors = {
-  primary: blue400, // this period
-  compare: blue100, // previous period
-  trend: blue800, // average
+  primary: lightBlue500, // this period
+  compare: lightBlue100, // previous period
+  trend: lightBlue800, // average
 };

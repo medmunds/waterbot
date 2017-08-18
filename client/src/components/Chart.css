@@ -55,7 +55,7 @@
 
 .Chart .rv-crosshair__line {
   /*background: rgba(0, 0, 0, 0.54);*/
-  background: #1565C0;
+  background: #0277BD;
   width: 1px;
 }
 
@@ -132,7 +132,7 @@
 }
 
 .Chart .rv-discrete-color-legend-item.clickable:hover {
-  background: #E3F2FD;
+  background: #E1F5FE;
 }
 
 .Chart .rv-legend-titles {
