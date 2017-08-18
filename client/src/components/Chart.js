@@ -21,6 +21,7 @@ import YAxis from "react-vis/es/plot/axis/y-axis";
 //   DiscreteColorLegend, Crosshair,
 // } from 'react-vis';
 
+import {chartColors} from '../theme';
 
 
 const seriesComponents = {
@@ -48,14 +49,15 @@ function hashDataCleaner(options) {
 }
 
 
-function seriesComponent({data, valueKey, type, ...props}) {
+function seriesComponent({data, valueKey, type, color=chartColors.primary, ...props}) {
   // Function returning a component -- not a composable component
   // (because react-vis looks for components inheriting from its AbstractSeries as direct children of XYPlot)
   const {component, props: componentProps, cleaner=standardDataCleaner} = seriesComponents[type];
   return React.createElement(component, {
     ...componentProps,
     key: valueKey,
-    data: cleaner({data, valueKey, type, ...props}),
+    data: cleaner({data, valueKey, type, color, ...props}),
+    color,
     ...props
   });
 }
@@ -165,7 +167,7 @@ export default class Chart extends PureComponent {
       return (
         <DiscreteColorLegend
           items={legendSeries.map(
-            ({label, legendLabel, color, opacity}) =>
+            ({label, legendLabel, color=chartColors.primary, opacity}) =>
               ({title: legendLabel || label, color, opacity}))}
         />
       )

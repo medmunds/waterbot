@@ -4,6 +4,8 @@ import LineSeries from "react-vis/es/plot/series/line-series";
 import XYPlot from "react-vis/es/plot/xy-plot";
 import YAxis from "react-vis/es/plot/axis/y-axis";
 
+import {chartColors} from '../theme';
+
 import './Sparkline.css';
 
 
@@ -11,6 +13,7 @@ export default function Sparkline({
   data,
   width=120,
   height=24,
+  color=chartColors.primary,
   ...props,
 }) {
   // react-vis LineSeries doesn't handle missing data (https://github.com/uber/react-vis/issues/457)
@@ -24,7 +27,7 @@ export default function Sparkline({
       {...props}
     >
       <YAxis tickTotal={0}/>
-      <LineSeries data={data} color="#4285F5"/>
+      <LineSeries data={data} color={color}/>
     </XYPlot>
   );
 }

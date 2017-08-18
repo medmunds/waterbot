@@ -4,6 +4,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 
 import Chart from "./components/Chart";
+import {chartColors} from './theme';
 
 
 function formatHour(ts, i) {
@@ -79,8 +80,8 @@ function mapStateToPropsDay(state) {
     xTooltipFormat: formatTimestamp,
     // FUTURE: yTickFormat: formatNumber1Digit,
     series: [
-      {label: "gallons", valueKey: "y", type: "bar", color: "#4285F5"},
-      // FUTURE: {label: "GPM", valueKey: "y", type: "bar", color: "#4285F5"},
+      {label: "gallons", valueKey: "y", type: "bar"},
+      // FUTURE: {label: "GPM", valueKey: "y", type: "bar"},
     ],
   };
 }
@@ -108,7 +109,7 @@ function mapStateToPropsMonth(state) {
     xTooltipFormat: formatFullDay,
     xType: "time",
     series: [
-      {label: "gallons", valueKey: "y", type: "bar", color: "#4285F5"},
+      {label: "gallons", valueKey: "y", type: "bar"},
     ],
   };
 }
@@ -175,19 +176,19 @@ function mapStateToPropsYTD(state) {
       {label: lastYearStart.format('YYYY'),
         tooltipLabel: `${lastYearStart.format('YYYY')} actual`,
         valueKey: "lastYear", type: "bar",
-        cluster: "lastYear", color: "#BBDEFB"},
+        cluster: "lastYear", color: chartColors.compare},
       {label: "(projected)",
         tooltipLabel: `${thisYearStart.format('YYYY')} projected`,
         hideLegend: true,
         valueKey: "thisYearProjected", type: "bar",
-        cluster: "thisYear", color: "#4285F5", fill: "transparent"},
+        cluster: "thisYear", color: chartColors.primary, fill: "transparent"},
       {label: thisYearStart.format('YYYY'),
         tooltipLabel: `${thisYearStart.format('YYYY')} actual`,
-        valueKey: "thisYear", type: "bar", cluster: "thisYear", color: "#4285F5"},
+        valueKey: "thisYear", type: "bar", cluster: "thisYear", color: chartColors.primary},
       {label: `Avg ${averageStart.format('YYYY')}–${averageEnd.format('YY')}`,
         tooltipLabel: `${averageYears}-year average`,
         valueKey: "average", type: "hash",
-        color: "#1565C0", stroke: "none"},
+        color: chartColors.trend, stroke: "none"},
     ],
   };
 }
