@@ -1,4 +1,5 @@
 import moment from 'moment';
+import sumBy from 'lodash/sumBy';
 import {
   FETCH_DATA_SUCCESS,
   fetchDataRequest, fetchDataSuccess, fetchDataFailure
@@ -116,12 +117,6 @@ function processReportData(reportType, data) {
 
 // All ranges are inclusive of [start, end]
 
-function last24HoursRange(now) {
-  const start = moment(now).startOf('hour').subtract(24, 'hours');
-  const end = moment(now).endOf('hour');
-  return {start, end};
-}
-
 function last30DaysRange(now) {
   const start = moment(now).startOf('day').subtract(30, 'days');
   const end = moment(now).endOf('day');
@@ -139,11 +134,10 @@ function filterRowsInRange(data, start, end, format) {
 
 
 export function selectLast24HoursScorecard(state) {
-  const {data: {hourly}, ui: {day: {endTimestamp}}} = state;
-  const {start, end} = last24HoursRange(endTimestamp);
-  const totalUsageGals = GALLONS_PER_CUFT *
-    filterRowsInRange(hourly, start, end, FORMAT_HOUR)
-    .reduce((total, row) => total + row.usage_cuft, 0);
+  const {data: {recent}, ui: {day: {endTimestamp}}} = state;
+  const end = moment(endTimestamp).endOf('hour');
+  const range = moment.duration(24, 'hours').beforeMoment(end);
+  const totalUsageGals = sumBy(recent.filter(row => range.contains(row.timestamp)), 'usageGals');
 
   return {
     title: "Last 24 hours",

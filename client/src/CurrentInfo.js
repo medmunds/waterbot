@@ -1,4 +1,3 @@
-import moment from 'moment';
 import React from 'react';
 import {connect} from 'react-redux';
 import last from 'lodash/last';
@@ -18,13 +17,12 @@ function selectCurrentMeter(state) {
   }
 
   const {current_reading_cuft, timestamp} = lastReading;
-  const lastReadingTime = moment.unix(timestamp);
 
   return {
     value: current_reading_cuft,
     fractionDigits: 1,
     suffix: " cu ft",
-    lastReadingTime,
+    lastReadingTime: timestamp,
   };
 }
 
