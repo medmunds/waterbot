@@ -83,20 +83,20 @@ function selectPastYearChart(state) {
   const data = [];
   selectMonthlyData(state, thisYearRange)
     .forEach(row => {
-      const month = parseInt(row.timestampStr.slice(5), 10) - 1; // 0-based
+      const month = row.timestamp.month();
       data[month] = data[month] || {x: month};
       data[month].thisYear = row.usageGals;
     });
   selectMonthlyData(state, lastYearRange)
     .forEach(row => {
-      const month = parseInt(row.timestampStr.slice(5), 10) - 1; // 0-based
+      const month = row.timestamp.month();
       data[month] = data[month] || {x: month};
       data[month].lastYear = row.usageGals;
     });
 
   selectMonthlyData(state, averageRange)
     .forEach(row => {
-      const month = parseInt(row.timestampStr.slice(5), 10) - 1; // 0-based
+      const month = row.timestamp.month();
       data[month] = data[month] || {x: month};
       data[month].averageTotal = (data[month].averageTotal || 0) + row.usageGals;
       data[month].averageN = (data[month].averageN || 0) + 1;

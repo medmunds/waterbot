@@ -14,9 +14,9 @@ import {
 
 const initialState = {
   recent: [],
-  hourly: {}, // map 'YYYY-MM-DD HH' --> {usageGals, wifiSignal, batteryPct}
-  daily: {}, // map 'YYYY-MM-DD' --> {usageGals}
-  monthly: {}, // map 'YYYY-MM' --> {usageGals}
+  hourly: [],
+  daily: [],
+  monthly: [],
 };
 
 
@@ -68,6 +68,10 @@ export function refreshAll() {
 
 
 const REPORTS = {
+  recent: {
+    timestampField: 'timestamp',
+    timestampFormat: 'unix',
+  },
   hourly: {
     timestampField: 'hour',
     timestampFormat: 'YYYY-MM-DD HH',
@@ -85,22 +89,15 @@ const REPORTS = {
 export const VALID_REPORT_TYPES = Object.keys(REPORTS);
 
 function processReportData(reportType, data) {
-  if (reportType === 'recent') {
-    data.forEach(row => {
-      row.timestamp = moment.unix(row.timestamp);
-      row.usageGals = row.usage_cuft * GALLONS_PER_CUFT;
-    });
-    return data;
-  }
-
   const {timestampField, timestampFormat} = REPORTS[reportType];
-  return data.reduce((processed, row) => {
-    const timestampStr = row[timestampField];
-    const timestamp = +moment(timestampStr, timestampFormat); // need to force timezone?
+  return data.map((row) => {
+    const timestamp = timestampFormat === 'unix'
+      ? moment.unix(row[timestampField])
+      : moment(row[timestampField], timestampFormat, /*strict=*/true); // timezone?
     const usageGals = row.usage_cuft * GALLONS_PER_CUFT;
-    processed[timestampStr] = {...row, timestamp, timestampStr, usageGals};
-    return processed;
-  }, {});
+    return {...row, timestamp, usageGals};
+  });
+  // data is already sorted by timestamp, from the server
 }
 
 
@@ -115,7 +112,7 @@ export function selectRecentData(state, range=undefined) {
 
 export function selectDailyData(state, range=undefined) {
   const {data: {daily}} = state;
-  let data = Object.values(daily);
+  let data = daily;
   if (range) {
     data = data.filter(row => range.contains(row.timestamp));
   }
@@ -126,8 +123,7 @@ export function selectDailyData(state, range=undefined) {
 
 export function selectMonthlyData(state, range=undefined) {
   const {data: {monthly}} = state;
-  let data = Object.values(monthly);
-
+  let data = monthly;
   if (range) {
     data = data.filter(row => range.contains(row.timestamp));
   }
