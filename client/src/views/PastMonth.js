@@ -59,6 +59,26 @@ export function selectPastMonthScorecard(state) {
 
 export const PastMonthScorecard = connect(selectPastMonthScorecard)(Scorecard);
 
+const AVERAGE_COST_PER_GALLON = 0.0171;  // in dollars
+const PERMACULTURE_DONATE_URL = "http://www.permaculture-sf.org/donate/";
+
+function CostScorecard({value}) {
+  // value is usage in gallons
+  const cost = value * AVERAGE_COST_PER_GALLON;
+  return (
+    <Scorecard
+      value={cost}
+      prefix={"$\u200A" /*hairspace after*/}
+      suffix=" estimated cost"
+    >
+      {"Your "}
+      <a href={PERMACULTURE_DONATE_URL}>tax-deductible donation</a>
+      {" helps keep the garden green—thanks!"}
+    </Scorecard>
+  );
+}
+
+const PastMonthCost = connect(selectPastMonthScorecard)(CostScorecard);
 
 //
 // PastMonthChart
@@ -101,6 +121,7 @@ export default function PastMonth() {
       chart={<PastMonthChart/>}
     >
       <PastMonthScorecard/>
+      <PastMonthCost/>
     </Section>
   );
 }

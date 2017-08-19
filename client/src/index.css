@@ -28,3 +28,11 @@ b, strong, th {
   font-weight: 500;
   /*line-height: 24px;*/
 }
+
+a, a:visited {
+  color: #689F38;
+  text-decoration: none;
+}
+a:hover, a:active {
+  text-decoration: underline;
+}
