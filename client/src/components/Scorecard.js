@@ -1,8 +1,7 @@
 import React from 'react';
+import {getDecimalFormatter, getPercentFormatter} from '../utils/formatters'
 import './Scorecard.css';
 
-
-const percentFormatter = new Intl.NumberFormat(undefined, {style: "percent", maximumFractionDigits: 0});
 
 export function Comparison({
   value, comparisonValue, comparisonLabel,
@@ -22,10 +21,11 @@ export function Comparison({
   const type = (absChange <= neutralChange) ? "neutral"
     : (change >= 0) === !decreaseIsPositive ? "positive" : "negative";
   const classes = `Comparison Comparison-type-${type}`;
+  const formattedAbsChange = getPercentFormatter(0)(absChange);
 
   return (
     <div className={classes}>
-      <span className="Comparison--value">{arrow}{percentFormatter.format(absChange)}</span>
+      <span className="Comparison--value">{arrow}{formattedAbsChange}</span>
       <span className="Comparison--label">{comparisonLabel}</span>
     </div>
   );
@@ -44,10 +44,7 @@ export default function Scorecard({
   title,
   children,
 }) {
-  const formatter = new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
-  });
+  const formattedValue = getDecimalFormatter(fractionDigits)(value);
 
   const comparisonProps = {
     value, comparisonValue, comparisonLabel, decreaseIsPositive, neutralChange};
@@ -57,7 +54,7 @@ export default function Scorecard({
       {title ? <div className="Scorecard--title">{title}</div> : null}
       <div>
         {prefix ? <span className="Scorecard--prefix">{prefix}</span> : null}
-        <span className="Scorecard--value">{formatter.format(value)}</span>
+        <span className="Scorecard--value">{formattedValue}</span>
         {suffix ? <span className="Scorecard--suffix">{suffix}</span> : null}
       </div>
       <Comparison {...comparisonProps}/>

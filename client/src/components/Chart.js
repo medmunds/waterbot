@@ -22,6 +22,7 @@ import YAxis from "react-vis/es/plot/axis/y-axis";
 // } from 'react-vis';
 
 import {chartColors} from '../theme';
+import {getDecimalFormatter} from '../utils/formatters';
 
 
 const seriesComponents = {
@@ -62,11 +63,7 @@ function seriesComponent({data, valueKey, type, color=chartColors.primary, ...pr
   });
 }
 
-const formatNumber = new Intl.NumberFormat(undefined, {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
-}).format;
-
+const formatNumber = getDecimalFormatter(0);
 
 export default class Chart extends PureComponent {
   constructor(props) {
