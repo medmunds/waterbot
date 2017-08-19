@@ -3,16 +3,13 @@ import {
   FETCH_DATA_SUCCESS,
   fetchDataRequest, fetchDataSuccess, fetchDataFailure
 } from "./actions";
+import {
+  deviceId,
+  GALLONS_PER_CUFT,
+  reportingTimezone,
+  reportUrl
+} from "../config";
 
-
-const reportUrl = 'https://us-central1-molten-turbine-171801.cloudfunctions.net/report';
-const deviceId = '31001a001047343438323536'; // live waterbot
-const reportingTimezone = 'US/Pacific';
-const GALLONS_PER_CUFT = 7.48052;
-
-const FORMAT_HOUR = 'YYYY-MM-DD HH';
-const FORMAT_DATE = 'YYYY-MM-DD';
-const FORMAT_MONTH = 'YYYY-MM';
 
 
 const initialState = {
@@ -70,19 +67,18 @@ export function refreshAll() {
 }
 
 
-
 const REPORTS = {
   hourly: {
     timestampField: 'hour',
-    timestampFormat: FORMAT_HOUR,
+    timestampFormat: 'YYYY-MM-DD HH',
   },
   daily: {
     timestampField: 'date',
-    timestampFormat: FORMAT_DATE,
+    timestampFormat: 'YYYY-MM-DD',
   },
   monthly: {
     timestampField: 'month',
-    timestampFormat: FORMAT_MONTH,
+    timestampFormat: 'YYYY-MM',
   },
 };
 
@@ -139,4 +135,3 @@ export function selectMonthlyData(state, range=undefined) {
   // FUTURE: update data from selectDailyData if range overlaps
   return data;
 }
-

@@ -11,6 +11,7 @@ import Scorecard from '../components/Scorecard';
 import Section from '../components/Section';
 import {selectDailyData} from '../store/data';
 import {offsetRange} from '../utils/date';
+import {AVERAGE_COST_PER_GALLON, PERMACULTURE_DONATE_URL} from '../config';
 
 
 function formatDay(ts) {
@@ -59,8 +60,6 @@ export function selectPastMonthScorecard(state) {
 
 export const PastMonthScorecard = connect(selectPastMonthScorecard)(Scorecard);
 
-const AVERAGE_COST_PER_GALLON = 0.0171;  // in dollars
-const PERMACULTURE_DONATE_URL = "http://www.permaculture-sf.org/donate/";
 
 function CostScorecard({value}) {
   // value is usage in gallons
