@@ -1,4 +1,4 @@
-// global Intl.NumberFormat
+import {format} from 'd3-format';
 
 
 let cachedFormatters = {
@@ -6,21 +6,16 @@ let cachedFormatters = {
   percent: {},
 };
 
-
 function getFormatter(style, fractionDigits) {
   // this assumes that we're always using the default locale,
   let formatter = cachedFormatters[style][fractionDigits];
   if (!formatter) {
-    formatter = new Intl.NumberFormat(undefined, {
-      style,
-      minimumFractionDigits: fractionDigits,
-      maximumFractionDigits: fractionDigits,
-    });
+    const type = {decimal: 'f', percent: '%'}[style];
+    formatter = format(`,.${fractionDigits}${type}`); // ',': group thousands; '.N': decimal digits; 'f' or '%'
     cachedFormatters[style][fractionDigits] = formatter;
   }
-  return formatter.format;
+  return formatter;
 }
-
 
 
 export function getDecimalFormatter(fractionDigits=0) {
