@@ -1,5 +1,4 @@
 import moment from 'moment';
-import sumBy from 'lodash/sumBy';
 import {
   FETCH_DATA_SUCCESS,
   fetchDataRequest, fetchDataSuccess, fetchDataFailure
@@ -21,12 +20,6 @@ const initialState = {
   hourly: {}, // map 'YYYY-MM-DD HH' --> {usageGals, wifiSignal, batteryPct}
   daily: {}, // map 'YYYY-MM-DD' --> {usageGals}
   monthly: {}, // map 'YYYY-MM' --> {usageGals}
-  latest: {
-    timestamp: undefined,
-    readingCuFt: undefined,
-    wifiSignal: undefined,
-    batteryPct: undefined,
-  },
 };
 
 
@@ -115,78 +108,35 @@ function processReportData(reportType, data) {
 }
 
 
-// All ranges are inclusive of [start, end]
-
-function last30DaysRange(now) {
-  const start = moment(now).startOf('day').subtract(30, 'days');
-  const end = moment(now).endOf('day');
-  return {start, end};
+export function selectRecentData(state, range=undefined) {
+  const {data: {recent}} = state;
+  let data = recent;
+  if (range) {
+    data = data.filter(row => range.contains(row.timestamp));
+  }
+  return data;
 }
 
+export function selectDailyData(state, range=undefined) {
+  const {data: {daily}} = state;
+  let data = Object.values(daily);
+  if (range) {
+    data = data.filter(row => range.contains(row.timestamp));
+  }
 
-function filterRowsInRange(data, start, end, format) {
-  const startFilter = start.format(format);
-  const endFilter = end.format(format);
-  return Object.keys(data)
-    .filter(key => startFilter <= key && key <= endFilter)
-    .map(key => data[key]);
+  // FUTURE: update data from recent if range overlaps recent timestamps
+  return data;
 }
 
+export function selectMonthlyData(state, range=undefined) {
+  const {data: {monthly}} = state;
+  let data = Object.values(monthly);
 
-export function selectLast24HoursScorecard(state) {
-  const {data: {recent}, ui: {day: {endTimestamp}}} = state;
-  const end = moment(endTimestamp).endOf('hour');
-  const range = moment.duration(24, 'hours').beforeMoment(end);
-  const totalUsageGals = sumBy(recent.filter(row => range.contains(row.timestamp)), 'usageGals');
+  if (range) {
+    data = data.filter(row => range.contains(row.timestamp));
+  }
 
-  return {
-    title: "Last 24 hours",
-    value: totalUsageGals,
-    fractionDigits: 1,
-    suffix: " gallons",
-  };
+  // FUTURE: update data from selectDailyData if range overlaps
+  return data;
 }
 
-export function selectLast30DaysScorecard(state) {
-  const {data: {daily}, ui: {month: {endTimestamp}}} = state;
-  const {start, end} = last30DaysRange(endTimestamp);
-  const totalUsageGals = filterRowsInRange(daily, start, end, FORMAT_DATE)
-    .reduce((total, row) => total + row.usageGals, 0);
-  // TODO: use fresher `hourly` data for current day
-
-  const lastYearStart = start.clone().subtract(1, 'year');
-  const lastYearEnd = end.clone().subtract(1, 'year');
-  const lastYearUsage = filterRowsInRange(daily, lastYearStart, lastYearEnd, FORMAT_DATE)
-    .reduce((total, row) => total + row.usageGals, 0);
-
-  return {
-    value: totalUsageGals,
-    suffix: " gallons",
-    comparisonValue: lastYearUsage,
-    comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
-    decreaseIsPositive: true,
-  };
-}
-
-export function selectYearToDateScorecard(state) {
-  // This is very similar to selectLast30DaysScorecard with a different date range
-  const {data: {daily}, ui: {ytd: {year}}} = state;
-  const start = year ? moment({year}) : moment().startOf('year');
-  const end = moment().endOf('day'); // TODO: full year if not current year (based latest report timestamp)
-  const totalUsageGals = filterRowsInRange(daily, start, end, FORMAT_DATE)
-    .reduce((total, row) => total + row.usageGals, 0);
-  // TODO: use fresher `hourly` data for current day
-
-  const lastYearStart = start.clone().subtract(1, 'year');
-  const lastYearEnd = end.clone().subtract(1, 'year');
-  const lastYearUsage = filterRowsInRange(daily, lastYearStart, lastYearEnd, FORMAT_DATE)
-    .reduce((total, row) => total + row.usageGals, 0);
-
-  return {
-    value: totalUsageGals,
-    suffix: " gallons",
-    comparisonValue: lastYearUsage,
-    comparisonLabel: `vs. last year (${start.format('M/D')}–${end.format('M/D')})`,
-    decreaseIsPositive: true,
-  };
-}
