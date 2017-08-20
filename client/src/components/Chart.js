@@ -183,16 +183,18 @@ export default class Chart extends PureComponent {
       return (
         <Crosshair values={[datum] /* only datum.x matters */}>
           <table className="Chart--tooltip">
-            <tr><th colSpan="2">{xFormat(datum.x)}</th></tr>
-            {series
-              .filter(({valueKey}) => datum.hasOwnProperty(valueKey))
-              .map(({label, tooltipLabel, valueKey}) =>
-                <tr key={valueKey}>
-                  <td>{tooltipLabel || label}</td>
-                  <td>{yFormat(datum[valueKey])}</td>
-                </tr>
-              )
-            }
+            <tbody>
+              <tr><th colSpan="2">{xFormat(datum.x)}</th></tr>
+              {series
+                .filter(({valueKey}) => datum.hasOwnProperty(valueKey))
+                .map(({label, tooltipLabel, valueKey}) =>
+                  <tr key={valueKey}>
+                    <td>{tooltipLabel || label}</td>
+                    <td>{yFormat(datum[valueKey])}</td>
+                  </tr>
+                )
+              }
+            </tbody>
           </table>
         </Crosshair>
       );
