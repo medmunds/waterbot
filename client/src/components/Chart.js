@@ -33,7 +33,9 @@ const seriesComponents = {
 
 function standardDataCleaner({data, valueKey}) {
   // filter rows without valueKey?
-  return data.map(row => ({x: row.x, y: row[valueKey]}));
+  return data
+    .filter(row => row && row.hasOwnProperty(valueKey))  // react-vis series really hate missing values
+    .map(row => ({x: row.x, y: row[valueKey]}));
 }
 
 function hashDataCleaner(options) {

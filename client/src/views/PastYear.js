@@ -2,6 +2,7 @@
 
 import moment from 'moment';
 import 'twix'; // extends moment
+import range from 'lodash/range';
 import sumBy from 'lodash/sumBy';
 import React from 'react';
 import {connect} from 'react-redux';
@@ -80,24 +81,21 @@ function selectPastYearChart(state) {
   const averageYears = 3;
   const averageRange = moment.duration(averageYears, 'years').beforeMoment(lastYearRange.end());
 
-  const data = [];
+  const data = range(0, 12).map(month => ({x: month}));
   selectMonthlyData(state, thisYearRange)
     .forEach(row => {
       const month = row.timestamp.month();
-      data[month] = data[month] || {x: month};
       data[month].thisYear = row.usageGals;
     });
   selectMonthlyData(state, lastYearRange)
     .forEach(row => {
       const month = row.timestamp.month();
-      data[month] = data[month] || {x: month};
       data[month].lastYear = row.usageGals;
     });
 
   selectMonthlyData(state, averageRange)
     .forEach(row => {
       const month = row.timestamp.month();
-      data[month] = data[month] || {x: month};
       data[month].averageTotal = (data[month].averageTotal || 0) + row.usageGals;
       data[month].averageN = (data[month].averageN || 0) + 1;
     });
@@ -107,11 +105,11 @@ function selectPastYearChart(state) {
     }
   });
 
-  if (data.length > 0) {
-    const now = moment(); // should come from state?
-    const fraction = now.date() / now.daysInMonth();
-    if (fraction > 0.1) {
-      const month = now.month(); // 0-based
+  const now = moment(); // should come from state?
+  const fraction = now.date() / now.daysInMonth();
+  if (fraction > 0.1) {
+    const month = now.month(); // 0-based
+    if (data[month].thisYear !== undefined) {
       data[month].thisYearProjected = data[month].thisYear / fraction;
     }
   }
