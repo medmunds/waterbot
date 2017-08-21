@@ -10,6 +10,7 @@ const {
   datasetId,
   tableId,
   defaultTimezone,
+  CUFT_DECIMAL_PLACES,
 } = require('./config');
 
 const bigquery = BigQuery({
@@ -22,8 +23,8 @@ const reports = {
     query: `
       #standardSQL
       SELECT
-        ROUND(usage_cuft, 1) AS usage_cuft,
-        ROUND(current_reading_cuft, 1) AS current_reading_cuft,
+        ROUND(usage_cuft, @cuft_decimal_places) AS usage_cuft,
+        ROUND(current_reading_cuft, @cuft_decimal_places) AS current_reading_cuft,
         FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez', timestamp, @timezone) AS \`time\`,
         period_sec,
         ROUND(battery_pct, 2) AS battery_pct,
@@ -43,10 +44,10 @@ const reports = {
       #standardSQL
       SELECT
         FORMAT_TIMESTAMP('%Y-%m-%d %H%Ez', timestamp, @timezone) AS \`hour\`,
-        ROUND(SUM(usage_cuft), 1) AS usage_cuft,
+        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
         COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), 1) AS last_reading_cuft,
-        UNIX_SECONDS(MAX(timestamp)) AS last_reading_timestamp,
+        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft,
+        FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez', MAX(timestamp), @timezone) AS last_reading_time,
         ROUND(MIN(battery_pct), 2) AS min_battery_pct,
         ROUND(MIN(battery_v), 1) AS min_battery_v,
         ROUND(AVG(wifi_signal), 1) AS avg_wifi_signal
@@ -65,9 +66,9 @@ const reports = {
       #standardSQL
       SELECT
         FORMAT_TIMESTAMP('%Y-%m-%d', timestamp, @timezone) AS \`date\`,
-        ROUND(SUM(usage_cuft), 1) AS usage_cuft,
+        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
         COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), 1) AS last_reading_cuft
+        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft
       FROM \`${tableId}\`
       WHERE
         timestamp >= @start_timestamp
@@ -83,9 +84,9 @@ const reports = {
       #standardSQL
       SELECT
         FORMAT_TIMESTAMP('%Y-%m', timestamp, @timezone) AS \`month\`,
-        ROUND(SUM(usage_cuft), 1) AS usage_cuft,
+        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
         COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), 1) AS last_reading_cuft
+        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft
       FROM \`${tableId}\`
       WHERE
         timestamp >= @start_timestamp
@@ -118,7 +119,8 @@ exports.report = function report(req, res) {
   }
 
   const query = report.query;
-  const start_time = report.start_time();
+  const now = moment.utc();
+  const start_time = report.start_time(now);
   const start_timestamp = bigquery.timestamp(start_time);
 
   const queryOptions = {
@@ -127,6 +129,7 @@ exports.report = function report(req, res) {
         device_id,
         start_timestamp,
         timezone,
+        cuft_decimal_places: CUFT_DECIMAL_PLACES,
       },
       useLegacySql: false,
       defaultDataset: {
@@ -143,6 +146,7 @@ exports.report = function report(req, res) {
       console.log(`Query ${type} complete: ${rows.length} rows`);
       const result = {
         data: rows,
+        timestamp: +now,
         // would be nice if we could determine whether BigQuery result was cached
       };
       res.set('Cache-Control', `public, max-age=${report.cache_seconds}`);
