@@ -1,6 +1,7 @@
 // Recent meter activity and current status
 
 import last from 'lodash/last';
+import maxBy from 'lodash/maxBy';
 import sumBy from 'lodash/sumBy';
 import moment from 'moment';
 import 'twix'; // extends moment
@@ -21,8 +22,8 @@ function selectRecentRange(state) {
 }
 
 function selectLastReading(state) {
-  const recent = selectRecentData(state);
-  return last(recent);
+  const recent = selectRecentData(state);  // not necessarily sorted
+  return maxBy(recent, 'timestamp');
 }
 
 //
@@ -66,6 +67,7 @@ function makeRecentSparklineSelector(valueKey, props) {
   return function select(state) {
     const recent = selectRecentData(state);
     const data = recent
+      .sort((a, b) => (a.timestamp - b.timestamp))
       .map(row => ({x: row.timestamp, y: row[valueKey]}))
       .filter(({y}) => y !== undefined && y !== null);
     const lastReading = last(data);
