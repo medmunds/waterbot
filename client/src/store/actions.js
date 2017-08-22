@@ -16,10 +16,10 @@ export function fetchDataRequest(reportType) {
   };
 }
 
-export function fetchDataSuccess(reportType, data) {
+export function fetchDataSuccess(reportType, data, timestamp) {
   return {
     type: FETCH_DATA_SUCCESS,
-    payload: {reportType, data}
+    payload: {reportType, data, timestamp}
   };
 }
 

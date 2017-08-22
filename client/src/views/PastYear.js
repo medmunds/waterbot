@@ -10,7 +10,7 @@ import {connect} from 'react-redux';
 import Chart from '../components/Chart';
 import Scorecard from '../components/Scorecard';
 import Section from '../components/Section';
-import {selectDailyData, selectMonthlyData} from '../store/data';
+import {selectDailyData, selectMonthlyData, selectLastUpdate} from '../store/data';
 import {chartColors} from '../theme';
 import {offsetRange} from '../utils/date';
 
@@ -47,8 +47,10 @@ function selectPastYearScorecard(state) {
   const lastYearUsage = sumBy(selectDailyData(state, lastYTDRange), 'usageGals');
   const ytdRangeLabel = `${thisYTDRange.start().format('M/D')}–${thisYTDRange.end().format('M/D')}`;
 
+  const valid = selectLastUpdate(state, 'daily') !== undefined;
+
   return {
-    value: thisYearUsage,
+    value: valid ? thisYearUsage : undefined,
     suffix: " gallons",
     comparisonValue: lastYearUsage,
     comparisonLabel: `vs. last year (${ytdRangeLabel})`,

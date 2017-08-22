@@ -26,14 +26,27 @@ const initialState = {
   recent: {},
   daily: {},
   monthly: {},
+  // freshness
+  lastUpdate: {
+    recent: undefined,
+    daily: undefined,
+    monthly: undefined,
+  },
 };
 
 
 export default function reducer(state=initialState, action) {
   switch (action.type) {
     case FETCH_DATA_SUCCESS: {
-      const {reportType, data} = action.payload;
-      let newState = {...state, [reportType]: processReportData(reportType, data)};
+      const {reportType, data, timestamp} = action.payload;
+      let newState = {
+        ...state,
+        [reportType]: processReportData(reportType, data),
+        lastUpdate: {
+          ...state.lastUpdate,
+          [reportType]: timestamp,
+        }
+      };
       newState = updateDailyWithRecent(newState);
       newState = updateMonthlyWithDaily(newState);
       return newState;
@@ -63,7 +76,7 @@ export function fetchData(reportType) {
 
     return fetchReport(reportType)
       .then(
-        ({data}) => dispatch(fetchDataSuccess(reportType, data)),
+        ({data, timestamp}) => dispatch(fetchDataSuccess(reportType, data, timestamp)),
         error => dispatch(fetchDataFailure(reportType, error))
       );
   };
@@ -220,4 +233,11 @@ export function selectDailyData(state, range=undefined) {
 
 export function selectMonthlyData(state, range=undefined) {
   return selectData(state, 'monthly', range);
+}
+
+
+export function selectLastUpdate(state, type) {
+  // unix timestamp, or undefined if not yet loaded
+  const {data: {lastUpdate}} = state;
+  return lastUpdate[type];
 }

@@ -11,7 +11,7 @@ import {connect} from 'react-redux';
 import Chart from '../components/Chart';
 import Scorecard from '../components/Scorecard';
 import Sparkline from '../components/Sparkline';
-import {selectRecentData} from '../store/data';
+import {selectRecentData, selectLastUpdate} from '../store/data';
 import Section from "../components/Section";
 
 
@@ -31,11 +31,7 @@ function selectLastReading(state) {
 //
 
 function selectCurrentMeter(state) {
-  const lastReading = selectLastReading(state);
-  if (!lastReading) {
-    return {value: undefined, lastReadingTime: undefined};
-  }
-
+  const lastReading = selectLastReading(state) || {};
   const {current_reading_cuft, timestamp} = lastReading;
 
   return {
@@ -49,7 +45,7 @@ function selectCurrentMeter(state) {
 function CurrentMeterComponent({lastReadingTime, ...scorecardProps}) {
   return (
     <Scorecard title="Current reading" {...scorecardProps}>
-      {lastReadingTime ? lastReadingTime.format('lll') : "loading"}
+      {lastReadingTime ? lastReadingTime.format('lll') : "(loading)"}
     </Scorecard>
   );
 }
@@ -200,10 +196,11 @@ export const RecentChart = connect(selectRecentChart)(Chart);
 function selectRecentScorecard(state) {
   const range = selectRecentRange(state);
   const totalUsageGals = sumBy(selectRecentData(state, range), 'usageGals');
+  const valid = selectLastUpdate(state, 'recent') !== undefined;
 
   return {
     title: "Last 24 hours",
-    value: totalUsageGals,
+    value: valid ? totalUsageGals : undefined,
     fractionDigits: 1,
     suffix: " gallons",
   };

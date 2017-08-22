@@ -9,7 +9,7 @@ import {connect} from 'react-redux';
 import Chart from '../components/Chart';
 import Scorecard from '../components/Scorecard';
 import Section from '../components/Section';
-import {selectDailyData} from '../store/data';
+import {selectDailyData, selectLastUpdate} from '../store/data';
 import {offsetRange} from '../utils/date';
 import {AVERAGE_COST_PER_GALLON, PERMACULTURE_DONATE_URL} from '../config';
 
@@ -49,8 +49,10 @@ export function selectPastMonthScorecard(state) {
   const lastYearData = selectDailyData(state, lastYearRange);
   const lastYearUsage = sumBy(lastYearData, 'usageGals');
 
+  const valid = selectLastUpdate(state, 'daily') !== undefined;
+
   return {
-    value: thisYearUsage,
+    value: valid ? thisYearUsage : undefined,
     suffix: " gallons",
     comparisonValue: lastYearUsage,
     comparisonLabel: `vs. last year (${thisYearRange.start().format('M/D')}–${thisYearRange.end().format('M/D')})`,
@@ -63,7 +65,7 @@ export const PastMonthScorecard = connect(selectPastMonthScorecard)(Scorecard);
 
 function CostScorecard({value}) {
   // value is usage in gallons
-  const cost = value * AVERAGE_COST_PER_GALLON;
+  const cost = value === undefined ? value :  value * AVERAGE_COST_PER_GALLON;
   return (
     <Scorecard
       value={cost}

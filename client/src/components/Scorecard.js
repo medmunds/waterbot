@@ -41,10 +41,13 @@ export default function Scorecard({
   fractionDigits=0,
   decreaseIsPositive,
   neutralChange,
+  noValueContent="--",
   title,
   children,
 }) {
-  const formattedValue = getDecimalFormatter(fractionDigits)(value);
+  const formattedValue = value === undefined
+    ? noValueContent
+    : getDecimalFormatter(fractionDigits)(value);
 
   const comparisonProps = {
     value, comparisonValue, comparisonLabel, decreaseIsPositive, neutralChange};
