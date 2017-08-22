@@ -36,3 +36,11 @@ a, a:visited {
 a:hover, a:active {
   text-decoration: underline;
 }
+
+/* seems like there might be a better place for this... */
+.NetworkIndicator.Progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  user-select: none;
+}

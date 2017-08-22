@@ -2,6 +2,26 @@
 # yarn lockfile v1
 
 
+"@material/animation@^0.3.1":
+  version "0.3.1"
+  resolved "https://registry.yarnpkg.com/@material/animation/-/animation-0.3.1.tgz#229de6927d0590d6d6b20157d778d264ef02229a"
+
+"@material/base@^0.2.4":
+  version "0.2.4"
+  resolved "https://registry.yarnpkg.com/@material/base/-/base-0.2.4.tgz#5f7abc80f808f955ec68b01106e490187e3feda9"
+
+"@material/linear-progress@^0.1.7":
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/@material/linear-progress/-/linear-progress-0.1.7.tgz#4ac219b23807f5607878421c26fe0b67debf89b4"
+  dependencies:
+    "@material/animation" "^0.3.1"
+    "@material/base" "^0.2.4"
+    "@material/theme" "^0.2.0"
+
+"@material/theme@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@material/theme/-/theme-0.2.0.tgz#f54a62e8bcd2a63818419c02f7ec61d9968eff07"
+
 abab@^1.0.3:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/abab/-/abab-1.0.3.tgz#b81de5f7274ec4e756d797cd834f303642724e5d"

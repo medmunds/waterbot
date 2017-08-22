@@ -35,3 +35,10 @@ export default function reducer(state=initialState, action) {
       return state;
   }
 }
+
+
+export function selectPendingNetworkActivity(state) {
+  const {ui: {pendingFetchCount}} = state;
+
+  return pendingFetchCount > 0;
+}

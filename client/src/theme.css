@@ -1,0 +1,10 @@
+/* material-components-web custom css property theme (doesn't work in IE or older Android) */
+:root {
+  --mdc-theme-primary: #03A9F4;
+  --mdc-theme-primary-light: #B3E5FC;
+  --mdc-theme-primary-dark: #0277BD;
+  --mdc-theme-secondary: #689F38;
+  --mdc-theme-secondary-light: #DCEDC8;
+  --mdc-theme-secondary-dark: #33691E;
+  --mdc-theme-background: #FFFFFF;
+}

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@material/linear-progress": "^0.1.7",
     "d3-format": "^1.2.0",
     "lodash": "^4.17.4",
     "moment": "^2.18.1",
