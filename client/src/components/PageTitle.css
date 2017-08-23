@@ -1,4 +1,54 @@
 .PageTitle {
   padding: 24px;
-  color: #01579B;
+  color: #fff;
+  background:
+    linear-gradient(to right,
+      rgba(0, 0, 0, 0.2) 440px,
+      rgba(0, 0, 0, 0)),
+    url('../media/heading.jpg') left center/cover no-repeat,
+    #689F38;
+}
+
+.PageTitle--title,
+.PageTitle--subtitle {
+  display: block;
+
+  font-weight: 400;
+  color: #fff;
+}
+
+.PageTitle--title {
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.PageTitle--subtitle {
+  font-size: 20px;
+  line-height: 24px;
+}
+
+
+@media screen and (min-width: 769px) {
+  .PageTitle {
+    padding-top: 64px;
+    background:
+      linear-gradient(to right, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.2) 30%, rgba(0, 0, 0, 0)),
+      url('../media/heading-large.jpg') left center/cover no-repeat,
+      #689F38;
+  }
+
+  .PageTitle--title,
+  .PageTitle--subtitle {
+    max-width: 50%;
+  }
+
+  .PageTitle--title {
+    font-size: 34px;
+    line-height: 40px;
+  }
+
+  .PageTitle--subtitle {
+    font-size: 24px;
+    line-height: 32px;
+  }
 }

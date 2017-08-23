@@ -10,7 +10,10 @@ export default function App() {
   return (
     <main>
       <NetworkIndicator/>
-      <PageTitle>18th &amp; Rhode Island Permaculture Garden water usage</PageTitle>
+      <PageTitle
+        supertitle={<span>18th &amp; Rhode Island Permaculture&nbsp;Garden</span>}
+        title="Water usage"
+      />
       <PastMonth/>
       <PastYear/>
       <RecentActivity/>

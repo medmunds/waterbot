@@ -3,7 +3,23 @@ import './PageTitle.css';
 import React from 'react';
 
 
-export default function PageTitle({className="", children, ...props}) {
+export default function PageTitle({
+  children,
+  className="",
+  title,
+  subtitle,
+  supertitle,
+  ...props
+}) {
   const classes = `PageTitle ${className}`;
-  return <h1 className={classes} {...props}>{children}</h1>;
+  return (
+    <header className={classes} {...props}>
+      <h1>
+        {supertitle ? <span className="PageTitle--subtitle">{supertitle}</span> : null}
+        <span className="PageTitle--title">{title}</span>
+        {subtitle ? <span className="PageTitle--subtitle">{subtitle}</span> : null}
+      </h1>
+      {children}
+    </header>
+  );
 }

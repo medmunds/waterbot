@@ -30,17 +30,29 @@ b, strong, th {
 }
 
 a, a:visited {
-  color: #689F38;
+  color: #03A9F4;
   text-decoration: none;
 }
 a:hover, a:active {
   text-decoration: underline;
 }
 
-/* seems like there might be a better place for this... */
+/* seems like there might be a better place for these... */
 .NetworkIndicator.Progress {
   position: fixed;
   top: 0;
   left: 0;
   user-select: none;
+}
+
+.Chart .rv-discrete-color-legend.vertical {
+  /* float legend in whitespace above chart */
+  top: auto;
+  bottom: 100%;
+}
+@media screen and (min-width: 769px) {
+  .Chart .rv-discrete-color-legend.vertical {
+    top: -64px;
+    bottom: auto;
+  }
 }

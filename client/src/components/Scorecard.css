@@ -20,8 +20,8 @@
   color: #B71C1C;
 }
 
-.Comparison-type-neutral .Comparision--value {
-  /*color: inherit;*/
+.Comparison-type-neutral .Comparison--value {
+  color: rgba(0, 0, 0, 0.54);
 }
 
 .Comparison--label {

@@ -54,8 +54,7 @@
 }
 
 .Chart .rv-crosshair__line {
-  /*background: rgba(0, 0, 0, 0.54);*/
-  background: #0277BD;
+  background: #689F38;
   width: 1px;
 }
 

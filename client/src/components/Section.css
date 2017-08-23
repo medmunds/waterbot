@@ -1,7 +1,5 @@
 .Section {
-  display: flex;
-  flex-flow: row wrap;
-  align-items: flex-start;
+  max-width: 100vw;
 
   padding: 12px;
 }
@@ -14,12 +12,10 @@
 }
 
 .Section--heading {
-  flex: 1 0 100%;
-
   margin: -12px -12px 12px;
   padding: 24px;
-  background-color: #01579B;
-  color: white;
+  background-color: #DCEDC8;
+  font-weight: 500;
 }
 
 .Section--title,
@@ -31,14 +27,44 @@
 }
 
 .Section--left {
-  flex: 0 0 220px;
+  margin: 0; /* moved into children, below */
+
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.Section--left > * {
+  margin: 12px;
+  flex: 1;
+  width: 0; /* even columns */
+  min-width: 140px;
 }
 
-.Section--right {
-  flex: 1 1;
-  min-width: 500px;
-}
 
-.Section--left > *:not(:first-child) {
-  margin-top: 24px;
+@media screen and (min-width: 769px) {
+  /* narrow left column with scorecards, wider right column with charts */
+
+  .Section {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: flex-start;
+  }
+
+  .Section--heading {
+    flex: 1 0 100%;
+  }
+
+  .Section--left {
+    flex: 0 0 240px;
+    flex-flow: column nowrap;
+  }
+  .Section--left > * {
+    width: auto;
+  }
+
+  .Section--right {
+    flex: 1 1 461px;
+    min-width: 100px;
+  }
 }
