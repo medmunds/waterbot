@@ -6,7 +6,7 @@ import {Provider} from "react-redux";
 import {createStore, applyMiddleware} from 'redux';
 import thunkMiddleware from 'redux-thunk'
 
-import registerServiceWorker from './registerServiceWorker';
+// import registerServiceWorker from './registerServiceWorker';
 import rootReducer from './store';
 import {refreshAll} from "./store/data";
 import App from './views/App';
@@ -26,4 +26,4 @@ ReactDOM.render(
   () => store.dispatch(refreshAll())
 );
 
-registerServiceWorker();
+// registerServiceWorker();
