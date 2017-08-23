@@ -117,6 +117,7 @@ const selectCurrentWiFi = makeRecentSparklineSelector('wifi_signal', {
   scorecard: {
     title: "WiFi signal",
     fractionDigits: 0,
+    suffix: " dBm",
   },
   sparkline: {
     yDomain: [-127, -1],
