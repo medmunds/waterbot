@@ -52,6 +52,18 @@ function hashDataCleaner(options) {
 }
 
 
+function Defs({children}) {
+  // deliberately ignore other props, because react-vis sets a bunch of them that don't apply
+  return (
+    <defs>
+      {children}
+    </defs>
+  );
+}
+Defs.requiresSVG = true; // tells react-vis to put Plot child in in svg
+// (https://github.com/uber/react-vis/issues/402#issuecomment-298749338)
+
+
 function seriesComponent({data, valueKey, type, color=chartColors.primary, ...props}) {
   // Function returning a component -- not a composable component
   // (because react-vis looks for components inheriting from its AbstractSeries as direct children of XYPlot)
@@ -103,6 +115,8 @@ export default class Chart extends PureComponent {
       ySkipZero,
       height,
       margin,
+      defs,
+      children,
     } = this.props;
 
     const yMax = max(data.map(row => max(series.map(({valueKey}) => row[valueKey])))) || 0;
@@ -124,6 +138,7 @@ export default class Chart extends PureComponent {
         yDomain={yDomain}
         onMouseLeave={this._onMouseLeave}
       >
+        {defs ? <Defs>{defs}</Defs> : null}
         <HorizontalGridLines tickTotal={yTickCount}/>
         {xGridValues ? <VerticalGridLines tickValues={xGridValues}/> : null}
         {series.map((s, i) => seriesComponent({
@@ -143,6 +158,7 @@ export default class Chart extends PureComponent {
           tickTotal={yTickCount}
           tickSize={0}
         />
+        {children}
         {this._renderLegend()}
         {this._renderTooltip()}
       </FlexibleWidthXYPlot>
@@ -188,7 +204,7 @@ export default class Chart extends PureComponent {
             <tbody>
               <tr><th colSpan="2">{xFormat(datum.x)}</th></tr>
               {series
-                .filter(({valueKey}) => datum.hasOwnProperty(valueKey))
+                .filter(({hideTooltip, valueKey}) => !hideTooltip && datum.hasOwnProperty(valueKey))
                 .map(({label, tooltipLabel, valueKey}) =>
                   <tr key={valueKey}>
                     <td>{tooltipLabel || label}</td>

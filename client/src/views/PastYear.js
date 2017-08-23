@@ -8,6 +8,7 @@ import React from 'react';
 import {connect} from 'react-redux';
 
 import Chart from '../components/Chart';
+import {DiagonalHash} from "../components/Pattern"
 import Scorecard from '../components/Scorecard';
 import Section from '../components/Section';
 import {selectDailyData, selectMonthlyData, selectLastUpdate} from '../store/data';
@@ -107,14 +108,14 @@ function selectPastYearChart(state) {
     }
   });
 
+  // lastYearToDate (through same date as current day)
   const now = moment(); // should come from state?
-  const fraction = now.date() / now.daysInMonth();
-  if (fraction > 0.1) {
-    const month = now.month(); // 0-based
-    if (data[month].thisYear !== undefined) {
-      data[month].thisYearProjected = data[month].thisYear / fraction;
-    }
-  }
+  const mtdRange = now.clone().startOf('month').twix(now);
+  const lastYearMtdRange = offsetRange(mtdRange, -1, 'year');
+  range(0, now.month()).forEach(month => {
+    data[month].lastYearToDate = data[month].lastYear || 0;
+  });
+  data[now.month()].lastYearToDate = sumBy(selectDailyData(state, lastYearMtdRange), 'usageGals') || 0;
 
   const thisYearLabel = thisYearRange.start().format('YYYY');
   const lastYearLabel = lastYearRange.start().format('YYYY');
@@ -127,20 +128,19 @@ function selectPastYearChart(state) {
       series: [
         {
           label: lastYearLabel,
-          tooltipLabel: `${lastYearLabel} actual`,
           valueKey: "lastYear", type: "bar",
+          cluster: "lastYear", color: chartColors.compare, fill: "url(#lastYearPattern)"
+        },
+        {
+          label: `${lastYearLabel} (thru ${now.format('M/DD')})`,
+          hideLegend: true,
+          hideTooltip: true,
+          valueKey: "lastYearToDate", type: "bar",
           cluster: "lastYear", color: chartColors.compare
         },
         {
-          label: "(projected)",
-          tooltipLabel: `${thisYearLabel} projected`,
-          hideLegend: true,
-          valueKey: "thisYearProjected", type: "bar",
-          cluster: "thisYear", color: chartColors.primary, fill: "transparent"
-        },
-        {
           label: thisYearLabel,
-          tooltipLabel: `${thisYearLabel} actual`,
+          tooltipLabel: thisYearLabel,
           valueKey: "thisYear", type: "bar", cluster: "thisYear", color: chartColors.primary
         },
         {
@@ -150,6 +150,7 @@ function selectPastYearChart(state) {
           color: chartColors.trend, stroke: "none"
         },
       ],
+    defs: <DiagonalHash id="lastYearPattern" color={chartColors.compare}/>,
   };
 }
 
