@@ -1,6 +1,7 @@
 import React from 'react';
 import PageFooter from "../components/PageFooter";
 import PageTitle from "../components/PageTitle";
+import DataLoadingErrors from "./DataLoadingErrors";
 import PastMonth from './PastMonth';
 import PastYear from './PastYear';
 import NetworkIndicator from "./NetworkIndicator";
@@ -18,6 +19,7 @@ export default function App() {
         title="Water usage"
       />
       <main>
+        <DataLoadingErrors/>
         <PastMonth/>
         <PastYear/>
         <RecentActivity/>

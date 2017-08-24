@@ -1,6 +1,7 @@
 import filter from 'lodash/filter';
 import groupBy from 'lodash/groupBy';
 import keyBy from 'lodash/keyBy';
+import map from 'lodash/map';
 import mapObject from 'lodash/mapValues';
 import filterObject from 'lodash/pickBy';
 import size from 'lodash/size';
@@ -9,7 +10,7 @@ import moment from 'moment';
 import 'twix'; // extends moment
 
 import {
-  FETCH_DATA_SUCCESS,
+  FETCH_DATA_REQUEST, FETCH_DATA_SUCCESS, FETCH_DATA_FAILURE,
   fetchDataRequest, fetchDataSuccess, fetchDataFailure
 } from "./actions";
 import {
@@ -32,11 +33,24 @@ const initialState = {
     daily: undefined,
     monthly: undefined,
   },
+  errors: {
+    recent: undefined,
+    daily: undefined,
+    monthly: undefined,
+  },
 };
 
 
 export default function reducer(state=initialState, action) {
   switch (action.type) {
+    case FETCH_DATA_REQUEST: {
+      const {reportType} = action.payload;
+      if (state.errors[reportType]) {
+        return {...state, errors: {...state.errors, [reportType]: undefined}};
+      } else {
+        return state;
+      }
+    }
     case FETCH_DATA_SUCCESS: {
       const {reportType, data, timestamp} = action.payload;
       let newState = {
@@ -50,6 +64,16 @@ export default function reducer(state=initialState, action) {
       newState = updateDailyWithRecent(newState);
       newState = updateMonthlyWithDaily(newState);
       return newState;
+    }
+    case FETCH_DATA_FAILURE: {
+      const {reportType, error} = action.payload;
+      return {
+        ...state,
+        errors: {
+          ...state.errors,
+          [reportType]: error,
+        },
+      };
     }
     default:
       return state;
@@ -240,4 +264,13 @@ export function selectLastUpdate(state, type) {
   // unix timestamp, or undefined if not yet loaded
   const {data: {lastUpdate}} = state;
   return lastUpdate[type];
+}
+
+
+export function selectErrorMessages(state) {
+  const {data: {errors}} = state;
+  return map(
+    filterObject(errors),
+    (error, reportType) => `Problem loading ${reportType} data: ${error.message || error}`
+  );
 }

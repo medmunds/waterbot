@@ -1,0 +1,9 @@
+.ErrorMessages {
+  padding: 12px;
+  background: #FFEBEE;
+  color: #B71C1C;
+}
+
+.ErrorMessages--message {
+  margin: 12px;
+}
