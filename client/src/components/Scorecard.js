@@ -1,5 +1,6 @@
 import React from 'react';
 import {getDecimalFormatter, getPercentFormatter} from '../utils/formatters'
+import {IconArrowDown, IconArrowUp} from './Icon';
 import './Scorecard.css';
 
 
@@ -16,7 +17,7 @@ export function Comparison({
   }
 
   const change = (value / comparisonValue) - 1.0;
-  const arrow = (change >= 0) ? "▲" : "▼";
+  const arrow = (change >= 0) ? <IconArrowUp/> : <IconArrowDown/>;
   const absChange = Math.abs(change);
   const type = (absChange <= neutralChange) ? "neutral"
     : (change >= 0) === !decreaseIsPositive ? "positive" : "negative";
