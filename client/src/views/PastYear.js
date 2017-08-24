@@ -144,7 +144,7 @@ function selectPastYearChart(state) {
           valueKey: "thisYear", type: "bar", cluster: "thisYear", color: chartColors.primary
         },
         {
-          label: `Avg ${averageRange.start().format('YYYY')}–${averageRange.end().format('YY')}`,
+          label: `Average ${averageRange.start().format('YYYY')}–${averageRange.end().format('YY')}`,
           tooltipLabel: `${averageYears}-year average`,
           valueKey: "average", type: "hash",
           color: chartColors.trend, stroke: "none"

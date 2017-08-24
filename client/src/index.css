@@ -44,15 +44,3 @@ a:hover, a:active {
   left: 0;
   user-select: none;
 }
-
-.Chart .rv-discrete-color-legend.vertical {
-  /* float legend in whitespace above chart */
-  top: auto;
-  bottom: 100%;
-}
-@media screen and (min-width: 769px) {
-  .Chart .rv-discrete-color-legend.vertical {
-    top: -64px;
-    bottom: auto;
-  }
-}

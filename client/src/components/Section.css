@@ -41,6 +41,11 @@
   min-width: 140px;
 }
 
+.Section--right {
+  height: calc(45vw - 24px);
+  min-height: 150px;
+}
+
 
 @media screen and (min-width: 769px) {
   /* narrow left column with scorecards, wider right column with charts */
@@ -66,5 +71,6 @@
   .Section--right {
     flex: 1 1 461px;
     min-width: 100px;
+    height: 280px;
   }
 }

@@ -77,17 +77,16 @@
   overflow-y: auto;
 
   padding: 4px 0;
-  background: #fff;
   color: rgba(0, 0, 0, 0.54);
-  border: 1px solid rgba(0, 0, 0, 0.12);
 
+  /* Gahh - legends won't position themselves in the flow with FlexibleXYPlot; see margin workaround in js */
   position: absolute;
-  top: 0;
   right: 0;
+  bottom: 0;
 }
 
 .Chart .rv-discrete-color-legend.horizontal {
-  white-space: nowrap
+  white-space: nowrap;
 }
 
 .Chart .rv-discrete-color-legend-item {
@@ -101,8 +100,7 @@
 }
 
 .Chart .rv-discrete-color-legend-item.horizontal .rv-discrete-color-legend-item__title {
-  margin-left: 0;
-  display: block;
+  display: inline-block;
 }
 
 .Chart .rv-discrete-color-legend-item__color {

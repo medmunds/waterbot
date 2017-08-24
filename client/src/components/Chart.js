@@ -4,7 +4,7 @@ import find from 'lodash/find';
 import max from 'lodash/max';
 import React, {PureComponent} from 'react';
 
-import {FlexibleWidthXYPlot} from "react-vis/es/make-vis-flexible";
+import {FlexibleXYPlot} from "react-vis/es/make-vis-flexible";
 import Crosshair from "react-vis/es/plot/crosshair";
 import CustomSVGSeries from "react-vis/es/plot/series/custom-svg-series";
 import DiscreteColorLegend from "react-vis/es/legends/discrete-color-legend";
@@ -96,8 +96,8 @@ export default class Chart extends PureComponent {
     yTickFormat: formatNumber,
     yTickCount: 4,
     ySkipZero: true,
-    height: 280,
     margin: {left: 50, right: 1, top: 10, bottom: 40},
+    className: "",
   };
 
   render() {
@@ -113,7 +113,7 @@ export default class Chart extends PureComponent {
       yTickFormat,
       yTickCount,
       ySkipZero,
-      height,
+      className,
       margin,
       defs,
       children,
@@ -128,11 +128,14 @@ export default class Chart extends PureComponent {
       ? (x) => (find(xMajorTickValues, x) ? xTickFormat(x) : undefined)
       : xTickFormat;
 
+    const legendItems = this._getLegendItems();
+    const adjustedMargin = legendItems ? {...margin, bottom: margin.bottom + 20} : margin;
+    const classes = `Chart ${className}`;
+
     return (
-      <FlexibleWidthXYPlot
-        className="Chart"
-        height={height}
-        margin={margin}
+      <FlexibleXYPlot
+        className={classes}
+        margin={adjustedMargin}
         xType={xType}
         xDomain={xDomain}
         yDomain={yDomain}
@@ -159,9 +162,9 @@ export default class Chart extends PureComponent {
           tickSize={0}
         />
         {children}
-        {this._renderLegend()}
+        {this._renderLegend(legendItems)}
         {this._renderTooltip()}
-      </FlexibleWidthXYPlot>
+      </FlexibleXYPlot>
     );
   }
 
@@ -174,18 +177,27 @@ export default class Chart extends PureComponent {
     this.setState({tooltipDatum: undefined});
   }
 
-  _renderLegend() {
-    // default is to show legend if there's more than one series
+  _getLegendItems() {
     const {showLegend, series} = this.props;
     const legendSeries = series.filter(s => !s.hideLegend);
+    // default is to show legend if there's more than one series
     if (showLegend || (showLegend === undefined && legendSeries.length > 1)) {
+      return legendSeries.map(
+            ({label, legendLabel, color=chartColors.primary, opacity}) =>
+              ({title: legendLabel || label, color, opacity}));
+    } else {
+      return undefined;
+    }
+  }
+
+  _renderLegend(legendItems) {
+    if (legendItems) {
       return (
         <DiscreteColorLegend
-          items={legendSeries.map(
-            ({label, legendLabel, color=chartColors.primary, opacity}) =>
-              ({title: legendLabel || label, color, opacity}))}
+          orientation="horizontal"
+          items={legendItems}
         />
-      )
+      );
     }
   }
 
