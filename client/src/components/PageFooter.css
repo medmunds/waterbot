@@ -1,0 +1,17 @@
+.PageFooter {
+  margin-top: 24px;
+  padding: 24px;
+  border-top: 1px solid #DCEDC8;
+
+  color: rgba(0, 0, 0, 0.54);
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.PageFooter > * {
+  flex: 0 1 auto;
+  min-width: 10px;
+}
+
