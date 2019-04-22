@@ -1,8 +1,9 @@
-// gcloud beta functions deploy report --stage-bucket waterbot --trigger-http
+// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs10
+// gcloud functions logs read report --limit 50
 // https://us-central1-molten-turbine-171801.cloudfunctions.net/report
 
 
-const BigQuery = require('@google-cloud/bigquery');
+const {BigQuery} = require('@google-cloud/bigquery');
 const moment = require('moment');
 
 const {
@@ -13,7 +14,7 @@ const {
   CUFT_DECIMAL_PLACES,
 } = require('./config');
 
-const bigquery = BigQuery({
+const bigquery = new BigQuery({
     projectId: projectId
 });
 

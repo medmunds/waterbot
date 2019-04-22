@@ -1,8 +1,8 @@
-// gcloud beta functions deploy dataCapture --stage-bucket waterbot --trigger-topic waterbot-data
-// gcloud beta functions logs read --limit 50
+// gcloud functions deploy dataCapture --stage-bucket waterbot --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs10
+// gcloud functions logs read dataCapture --limit 10
 
 
-const BigQuery = require('@google-cloud/bigquery');
+const {BigQuery} = require('@google-cloud/bigquery');
 
 const {
   projectId,
@@ -11,16 +11,16 @@ const {
   CUFT_PER_METER_TICK
 } = require('./config');
 
-const bigquery = BigQuery({
+const bigquery = new BigQuery({
     projectId: projectId
 });
 
 
-exports.dataCapture = function dataCapture(event) {
+exports.dataCapture = function dataCapture(data) {
     // Extract the pubsubMessage data from Particle, transform the data, and load it into BigQuery
-    const pubsubMessage = event.data;
+    const pubsubMessage = data;
     const {device_id, event: event_type, published_at} = pubsubMessage.attributes;
-    const data = pubsubMessage.data ? JSON.parse(Buffer.from(pubsubMessage.data, 'base64').toString()) : {};
+    const eventData = pubsubMessage.data ? JSON.parse(Buffer.from(pubsubMessage.data, 'base64').toString()) : {};
     const {
         t: timestamp,
         seq: sequence,
@@ -32,7 +32,7 @@ exports.dataCapture = function dataCapture(event) {
         btv: battery_v,
         btp: battery_pct,
         v: firmware_version,
-    } = data;
+    } = eventData;
 
     // Should probably do some validation here -- check firmware_version, ensure readings exist, etc.
 
