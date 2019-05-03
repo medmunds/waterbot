@@ -14,11 +14,8 @@ export default function Sparkline({
   width=120,
   height=24,
   color=chartColors.primary,
-  ...props,
+  ...props
 }) {
-  // react-vis LineSeries doesn't handle missing data (https://github.com/uber/react-vis/issues/457)
-  data = data.filter(({y}) => (y !== undefined && y !== null));
-
   return (
     <XYPlot
       width={width} height={height}

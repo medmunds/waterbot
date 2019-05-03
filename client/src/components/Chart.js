@@ -128,6 +128,12 @@ export default class Chart extends PureComponent {
       ? (x) => (find(xMajorTickValues, x) ? xTickFormat(x) : undefined)
       : xTickFormat;
 
+    // react-vis tickValues must be string or number
+    const xMinorTickValuesNumbers = xMinorTickValues
+      ? xMinorTickValues.map(v => +v) : xMinorTickValues;
+    const xGridValuesNumbers = xGridValues
+      ? xGridValues.map(v => +v) : xGridValues;
+
     const legendItems = this._getLegendItems();
     const adjustedMargin = legendItems ? {...margin, bottom: margin.bottom + 20} : margin;
     const classes = `Chart ${className}`;
@@ -143,7 +149,7 @@ export default class Chart extends PureComponent {
       >
         {defs ? <Defs>{defs}</Defs> : null}
         <HorizontalGridLines tickTotal={yTickCount}/>
-        {xGridValues ? <VerticalGridLines tickValues={xGridValues}/> : null}
+        {xGridValues ? <VerticalGridLines tickValues={xGridValuesNumbers}/> : null}
         {series.map((s, i) => seriesComponent({
           data,
           ...s,
@@ -153,7 +159,7 @@ export default class Chart extends PureComponent {
           tickFormat={xMajorTickFormat}
           tickSizeInner={0}
           tickSizeOuter={xTickSize}
-          tickValues={xMinorTickValues}
+          tickValues={xMinorTickValuesNumbers}
         />
         <YAxis
           style={{line: {stroke: "none"}}}

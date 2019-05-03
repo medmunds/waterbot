@@ -7,7 +7,7 @@ export default function ErrorMessages({
   errors=[],
   className="",
   children,
-  ...props,
+  ...props
 }) {
   if (!errors || errors.length < 1) {
     return null;
