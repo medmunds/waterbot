@@ -132,7 +132,8 @@ export default class Chart extends PureComponent {
     const xMinorTickValuesNumbers = xMinorTickValues
       ? xMinorTickValues.map(v => +v) : xMinorTickValues;
     const xGridValuesNumbers = xGridValues
-      ? xGridValues.map(v => +v) : xGridValues;
+      ? xGridValues.filter(v => v >= xDomain[0] && v <= xDomain[1]).map(v => +v)
+      : xGridValues;
 
     const legendItems = this._getLegendItems();
     const adjustedMargin = legendItems ? {...margin, bottom: margin.bottom + 20} : margin;
