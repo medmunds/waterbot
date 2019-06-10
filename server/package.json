@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy-capture": "gcloud functions deploy dataCapture --stage-bucket waterbot --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs10",
+    "deploy-report": "gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs10",
     "logs": "gcloud functions logs read --limit 50"
   },
   "author": "Mike Edmunds",
