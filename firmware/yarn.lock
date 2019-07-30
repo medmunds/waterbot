@@ -359,10 +359,10 @@ bcrypt-pbkdf@^1.0.0:
   dependencies:
     tweetnacl "^0.14.3"
 
-binary-version-reader@^0.6.4:
-  version "0.6.4"
-  resolved "https://registry.yarnpkg.com/binary-version-reader/-/binary-version-reader-0.6.4.tgz#48d926f289cd00f5e176f18bcc877ed84afa5619"
-  integrity sha512-8AS9TgrqxA4Q5zFhf7Z2LC9QhGl02WPJn+3fbz/zI8zAJS7JPN894ZzNsYd7QUv9YRzhEbkGbegwVzKIg8ZBqQ==
+binary-version-reader@^0.6.5:
+  version "0.6.5"
+  resolved "https://registry.yarnpkg.com/binary-version-reader/-/binary-version-reader-0.6.5.tgz#7a1d027e4257753ea4d93685af1a8014e9dda55a"
+  integrity sha512-/7qMz4ta+/5LGz3aalMNWXXGLAeOgvs8Oscl+0f2yAgJBSxuhU6OuY2tWMysMiLM4gIP0ka9MnE8chx8//9OBw==
   dependencies:
     buffer-crc32 "^0.2.5"
     chai "^3.5.0"
@@ -720,7 +720,7 @@ core-js@^2.4.0, core-js@^2.6.5:
   resolved "https://registry.yarnpkg.com/core-js/-/core-js-2.6.9.tgz#6b4b214620c834152e179323727fc19741b084f2"
   integrity sha512-HOpZf6eXmnl7la+cUdMnLvUxKNqLUzJvgIziQ0DiF3JwSImNphIqdGqzj6hIKyX04MmV0poclQ7+wjWvxQyR2A==
 
-core-js@^3.1.3:
+core-js@^3.0.1:
   version "3.1.3"
   resolved "https://registry.yarnpkg.com/core-js/-/core-js-3.1.3.tgz#95700bca5f248f5f78c0ec63e784eca663ec4138"
   integrity sha512-PWZ+ZfuaKf178BIAg+CRsljwjIMRV8MY00CbZczkR6Zk5LfkSkjGoaab3+bqRQWVITNZxQB7TFYz+CFcyuamvA==
@@ -2395,15 +2395,16 @@ particle-api-js@^7.4.1:
     superagent "^3.6.0"
     superagent-prefix "0.0.2"
 
-particle-cli@^1.23.1:
-  version "1.41.1"
-  resolved "https://registry.yarnpkg.com/particle-cli/-/particle-cli-1.41.1.tgz#e602184b06bc265efe5e980dfaa4be90c210f119"
-  integrity sha512-YqPVu/izwUfWjudWeTkXwDBBJVhBmjEFd8zqP4bEnvEoprIdtNTzhqCI6ZkUeVnuFGHusENGtTmlQxslC0nYHg==
+particle-cli@^1.43.3:
+  version "1.43.3"
+  resolved "https://registry.yarnpkg.com/particle-cli/-/particle-cli-1.43.3.tgz#33b55962a39fbec896073749f9783b6b8156fc49"
+  integrity sha512-d/XmDFdHW2K0EwT5Z25D9UQyYxWLhdpWmZrOCaSLOho2OxHTIeg1rpjX13wZlm9PJnBho2dv7v30KRqgyF3lmQ==
   dependencies:
-    binary-version-reader "^0.6.4"
+    binary-version-reader "^0.6.5"
     chalk "^2.4.2"
     cli-spinner "^0.2.10"
     cli-table "^0.3.1"
+    core-js "^3.0.1"
     glob "^7.1.3"
     handlebars "^4.1.2"
     inquirer "^6.3.1"
@@ -2422,7 +2423,7 @@ particle-cli@^1.23.1:
     temp "^0.9.0"
     verror "^1.10.0"
     when "^3.7.2"
-    wiring-preprocessor "^1.0.1"
+    wiring-preprocessor "^2.0.1"
     xtend "^4.0.0"
     yargs "^5.0.0"
     yeoman-environment "^2.3.4"
@@ -3479,9 +3480,9 @@ tough-cookie@~2.3.0:
     punycode "^1.4.1"
 
 tslib@^1.9.0:
-  version "1.9.3"
-  resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.9.3.tgz#d7e4dd79245d85428c4d7e4822a79917954ca286"
-  integrity sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/tslib/-/tslib-1.10.0.tgz#c3c19f95973fb0a62973fb09d90d961ee43e5c8a"
+  integrity sha512-qOebF53frne81cf0S9B41ByenJ3/IuH8yJKngAX35CmiZySA0khhkovshKK+jGCaMnVomla7gVlIcc3EvKPbTQ==
 
 tunnel-agent@^0.6.0:
   version "0.6.0"
@@ -3694,10 +3695,10 @@ winreg@^1.2.2:
   resolved "https://registry.yarnpkg.com/winreg/-/winreg-1.2.4.tgz#ba065629b7a925130e15779108cf540990e98d1b"
   integrity sha1-ugZWKbepJRMOFXeRCM9UCZDpjRs=
 
-wiring-preprocessor@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/wiring-preprocessor/-/wiring-preprocessor-1.0.1.tgz#a49856c7d9b2c6c727bffb74074d1625c244c866"
-  integrity sha512-Wb2UAGWjAUqlW6qmsMAZqdBhB96trf0vkno7PowkmAbCmMFE9w7BjyUVPjIsD3TFH5opnjre29nHQXOMnt6n3g==
+wiring-preprocessor@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/wiring-preprocessor/-/wiring-preprocessor-2.0.1.tgz#d75657b0826580b0385db1487dedc0c0cc7a47ef"
+  integrity sha512-7P8ZD3X+IzPMuUrptdnrcZaokpHTfwnASbeqJ4npxoGSQ0x+2kQIcOiS8Kbb4Zer1KHzYaRzoavMWK1IEzKv9w==
 
 wordwrap@~0.0.2:
   version "0.0.3"
