@@ -104,7 +104,6 @@
 }
 
 .Chart .rv-discrete-color-legend-item__color {
-  background: #dcdcdc;
   display: inline-block;
   height: 2px;
   vertical-align: middle;
@@ -112,8 +111,11 @@
 }
 
 /* hack -- need to determine bar vs line series types */
+.Chart .rv-discrete-color-legend-item:last-child .rv-discrete-color-legend-item__color {
+  transform: scaleY(2);
+}
 .Chart .rv-discrete-color-legend-item:not(:last-child) .rv-discrete-color-legend-item__color {
-  height: 14px;
+  transform: scaleY(14);
 }
 
 .Chart .rv-discrete-color-legend-item__title {
