@@ -4,5 +4,5 @@ export const reportingTimezone = 'US/Pacific';
 
 export const GALLONS_PER_CUFT = 7.48052;
 
-export const AVERAGE_COST_PER_GALLON = 0.0190;  // in dollars
-export const PERMACULTURE_DONATE_URL = "http://www.permaculture-sf.org/donate/";
+export const AVERAGE_COST_PER_GALLON = 0.0192;  // in dollars
+export const PERMACULTURE_DONATE_URL = "https://www.permaculture-sf.org/donate/";
