@@ -10,6 +10,6 @@
   "author": "Mike Edmunds",
   "license": "MIT",
   "dependencies": {
-    "particle-cli": "^1.43.3"
+    "particle-cli": "^2.0.1"
   }
 }
