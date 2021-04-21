@@ -1,25 +1,31 @@
-// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs10
+// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs14
 // gcloud functions logs read report --limit 50
 // https://us-central1-molten-turbine-171801.cloudfunctions.net/report
 
 
-const {BigQuery} = require('@google-cloud/bigquery');
-const moment = require('moment');
+import {BigQuery} from '@google-cloud/bigquery';
+import type {HttpFunction} from '@google-cloud/functions-framework/build/src/functions';
+import moment, {Moment} from 'moment';
+import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId, tableId} from './config';
 
-const {
-  projectId,
-  datasetId,
-  tableId,
-  defaultTimezone,
-  CUFT_DECIMAL_PLACES,
-} = require('./config');
 
 const bigquery = new BigQuery({
-    projectId: projectId
+  projectId: projectId,
 });
 
 
-const reports = {
+type TTime = Moment | number | undefined;
+type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
+
+
+interface TReportDef {
+  query: string;
+  start_time: (now: TTime) => Moment;
+  cache_seconds: number;
+}
+
+
+const reports: Record<TReportType, TReportDef> = {
   recent: {
     query: `
       #standardSQL
@@ -101,11 +107,12 @@ const reports = {
 };
 
 
-exports.report = function report(req, res) {
+export const report: HttpFunction = (req, res) => {
   // TODO: validate req.method
   res.set('Access-Control-Allow-Origin', '*');
 
-  const type = (req.query.type || 'daily').toLowerCase();
+  const rawType = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type;
+  const type = typeof rawType === 'string' ? rawType.toLowerCase() as TReportType : 'daily';
   const report = reports[type];
   if (!report) {
     res.status(400).json({error: `Unknown 'type'`}).end();
@@ -122,22 +129,22 @@ exports.report = function report(req, res) {
   const query = report.query;
   const now = moment.utc();
   const start_time = report.start_time(now);
-  const start_timestamp = bigquery.timestamp(start_time);
+  const start_timestamp = bigquery.timestamp(start_time.toDate());
 
   const queryOptions = {
-      query,
-      params: {
-        device_id,
-        start_timestamp,
-        timezone,
-        cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      },
-      useLegacySql: false,
-      defaultDataset: {
-        projectId,
-        datasetId,
-      },
-    };
+    query,
+    params: {
+      device_id,
+      start_timestamp,
+      timezone,
+      cuft_decimal_places: CUFT_DECIMAL_PLACES,
+    },
+    useLegacySql: false,
+    defaultDataset: {
+      projectId,
+      datasetId,
+    },
+  };
 
   console.log(`Starting ${type} query:`, queryOptions);
   bigquery
@@ -162,4 +169,4 @@ exports.report = function report(req, res) {
       res.send(err);
       res.end();
     });
-};
+}

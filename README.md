@@ -10,7 +10,7 @@ here's the [latest data][production-waterbot].
 
 ## What's involved
 
-Skeletal docs follow; better info to come later. 
+Skeletal docs follow; better info to come later.
 Feel free to contact Mike (email is in my profile) with any questions.
 
 
@@ -25,7 +25,7 @@ You'll need:
 * A waterproof case to hold the electronics,
   with a clear cover so you can see the various LEDs for troubleshooting
 * A solar cell that provides DC power for the Power Shield: we're piggy-backing off a 24V
-  one the garden was already using for its pond pump  
+  one the garden was already using for its pond pump
 
 You'll also need access to a WiFi network. We have plenty of those in SF.
 (Particle also makes a similar "Electron" board that uses cellular instead
@@ -35,7 +35,7 @@ Wiring (the Fritzing schematic is slightly outdated):
 * Connect the Photon's WKP and 3V3 pins directly to the meter's pulse output
 * Connect the solar cell to the Power Shield's DC input screw terminals
 * (Optional, but recommended:) Connect the Photon's GND and RST pins to a pushbutton
-  you can access relatively easily -- this lets you wake up the Photon for maintenance  
+  you can access relatively easily -- this lets you wake up the Photon for maintenance
 
 [water-meter]: http://www.ekmmetering.com/3-4-water-meter-stainless-steel-pulse-output.html
 [photon]: https://www.particle.io/products/hardware/photon-wifi-dev-kit
@@ -54,7 +54,7 @@ The firmware publishes events to the Particle Cloud:
   It will group together multiple pulses in a 5-minute period.
 
 * At least once every 4 hours, even if no meter pulses are detected.
-  
+
 Once running the waterbot firmware, your Photon will try to enter deep sleep as often as possible
 to conserve battery. The reset button will wake it up for 5 minutes so you can perform maintenance.
 
@@ -71,7 +71,7 @@ collecting data in BigQuery. There are two Cloud Function endpoints:
 
 * `dataCapture` receives events from the Particle Cloud via a Pub/Sub Topic
   and stores the data in Google BigQuery
-  
+
 * `report` summarizes the data from BigQuery for use by the web client
 
 
@@ -83,7 +83,7 @@ To deploy your own (and yes, this all needs to get cleaned up and automated):
 2. Create a BigQuery table using this [schema](server/schema.json). Optionally populate it
    with any historic usage data.
 
-3. Edit the [server config](server/config.js) to match your Google Cloud Platform project,
+3. Edit the [server config](server/src/config.ts) to match your Google Cloud Platform project,
    and then deploy the two Cloud Functions using the comments at the top of each .js file.
 
 [particle-google-pubsub]: https://docs.particle.io/tutorials/integrations/google-cloud-platform/
@@ -95,9 +95,9 @@ The [waterbot client](client/) component runs in a web browser and generates nic
 from the server reports. Here's [a live example][production-waterbot].
 
 Most of the [client config](client/src/config.js) is separated out, but there are probably
-some hard-coded links and references to Permaculture SF scattered around the code. 
+some hard-coded links and references to Permaculture SF scattered around the code.
 
-The client is (currently) a create-react-app project. 
+The client is (currently) a create-react-app project.
 Build it with `yarn build`.
 
 The resulting build is a static site and can be hosted just about anywhere.
