@@ -36,7 +36,7 @@ test(`loads particle event data`, async () => {
   const encodedEvent = Buffer.from(JSON.stringify(eventData)).toString('base64');
   const message = {
     attributes: {device_id: "TEST_DEVICE_ID", event: "waterbot/data", published_at: "2021-04-24T15:17:46.597Z"},
-    data: Buffer.from(encodedEvent, 'base64'),
+    data: Buffer.from(encodedEvent),
   }
 
   const log = jest.spyOn(console, "log").mockImplementation(() => {});

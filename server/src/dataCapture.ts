@@ -18,7 +18,11 @@ export const dataCapture: EventFunction = (data) => {
   // Extract the pubsubMessage data from Particle, transform the data, and load it into BigQuery
   const pubsubMessage = data as Message;
   const {device_id} = pubsubMessage.attributes as unknown as ParticleMessageAttributes;
-  const eventData = pubsubMessage.data ? JSON.parse(pubsubMessage.data.toString('utf-8')) : {};
+  const eventData = pubsubMessage.data
+    ? JSON.parse(
+      Buffer.from(pubsubMessage.data.toString(), 'base64')
+        .toString('utf-8'))
+    : {};
   const {
     t: timestamp,
     seq: sequence,
