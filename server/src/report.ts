@@ -108,8 +108,15 @@ const reports: Record<TReportType, TReportDef> = {
 
 
 export const report: HttpFunction = (req, res) => {
-  // TODO: validate req.method
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    res.status(405).json({error: `Method not allowed`}).end();
+    return;
+  }
   res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
 
   const rawType = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type;
   const type = typeof rawType === 'string' ? rawType.toLowerCase() as TReportType : 'daily';
@@ -120,7 +127,7 @@ export const report: HttpFunction = (req, res) => {
   }
 
   const timezone = req.query.timezone || defaultTimezone;
-  const device_id = req.query.device_id;
+  const device_id = Array.isArray(req.query.device_id) ? req.query.device_id[0] : req.query.device_id;
   if (!device_id) {
     res.status(400).json({error: `Param 'device_id' is required`}).end();
     return;
@@ -166,7 +173,7 @@ export const report: HttpFunction = (req, res) => {
       if (!res.headersSent) {
         res.status(400);
       }
-      res.send(err);
+      res.json({error: err.toString()});
       res.end();
     });
 }
