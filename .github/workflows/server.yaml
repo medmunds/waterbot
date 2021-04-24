@@ -1,0 +1,21 @@
+name: "server"
+
+on:
+  push:
+    paths:
+      - "server/**"
+      - ".github/workflows/server.yaml"
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: "install"
+        run: yarn install --frozen-lockfile
+      - name: "test"
+        run: yarn test

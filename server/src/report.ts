@@ -1,25 +1,26 @@
-// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs10
+// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs14
 // gcloud functions logs read report --limit 50
 // https://us-central1-molten-turbine-171801.cloudfunctions.net/report
 
 
-const {BigQuery} = require('@google-cloud/bigquery');
-const moment = require('moment');
-
-const {
-  projectId,
-  datasetId,
-  tableId,
-  defaultTimezone,
-  CUFT_DECIMAL_PLACES,
-} = require('./config');
-
-const bigquery = new BigQuery({
-    projectId: projectId
-});
+import type {HttpFunction} from '@google-cloud/functions-framework/build/src/functions';
+import moment, {Moment} from 'moment';
+import {bigquery} from './bigquery';
+import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId, tableId} from './config';
 
 
-const reports = {
+type TTime = Moment | number | undefined;
+type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
+
+
+interface TReportDef {
+  query: string;
+  start_time: (now: TTime) => Moment;
+  cache_seconds: number;
+}
+
+
+export const reportDefs: Record<TReportType, TReportDef> = {
   recent: {
     query: `
       #standardSQL
@@ -101,19 +102,27 @@ const reports = {
 };
 
 
-exports.report = function report(req, res) {
-  // TODO: validate req.method
+export const report: HttpFunction = (req, res) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+    res.status(405).json({error: `Method not allowed`}).end();
+    return;
+  }
   res.set('Access-Control-Allow-Origin', '*');
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
 
-  const type = (req.query.type || 'daily').toLowerCase();
-  const report = reports[type];
+  const rawType = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type;
+  const type = typeof rawType === 'string' ? rawType.toLowerCase() as TReportType : 'daily';
+  const report = reportDefs[type];
   if (!report) {
     res.status(400).json({error: `Unknown 'type'`}).end();
     return;
   }
 
   const timezone = req.query.timezone || defaultTimezone;
-  const device_id = req.query.device_id;
+  const device_id = Array.isArray(req.query.device_id) ? req.query.device_id[0] : req.query.device_id;
   if (!device_id) {
     res.status(400).json({error: `Param 'device_id' is required`}).end();
     return;
@@ -122,22 +131,22 @@ exports.report = function report(req, res) {
   const query = report.query;
   const now = moment.utc();
   const start_time = report.start_time(now);
-  const start_timestamp = bigquery.timestamp(start_time);
+  const start_timestamp = bigquery.timestamp(start_time.toDate());
 
   const queryOptions = {
-      query,
-      params: {
-        device_id,
-        start_timestamp,
-        timezone,
-        cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      },
-      useLegacySql: false,
-      defaultDataset: {
-        projectId,
-        datasetId,
-      },
-    };
+    query,
+    params: {
+      device_id,
+      start_timestamp,
+      timezone,
+      cuft_decimal_places: CUFT_DECIMAL_PLACES,
+    },
+    useLegacySql: false,
+    defaultDataset: {
+      projectId,
+      datasetId,
+    },
+  };
 
   console.log(`Starting ${type} query:`, queryOptions);
   bigquery
@@ -159,7 +168,7 @@ exports.report = function report(req, res) {
       if (!res.headersSent) {
         res.status(400);
       }
-      res.send(err);
+      res.json({error: err.toString()});
       res.end();
     });
-};
+}

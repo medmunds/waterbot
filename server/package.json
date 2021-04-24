@@ -1,18 +1,33 @@
 {
   "name": "waterbot",
-  "version": "0.1.1",
-  "description": "Waterbot data-loader Google Cloud Function",
-  "main": "index.js",
+  "version": "0.2.0",
+  "description": "Waterbot Google Cloud Functions",
+  "main": "build/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "deploy-capture": "gcloud functions deploy dataCapture --stage-bucket waterbot --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs10",
-    "deploy-report": "gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs10",
+    "build": "tsc",
+    "gcp-build": "tsc",
+    "test": "jest",
+    "deploy-capture": "gcloud functions deploy dataCapture --stage-bucket waterbot --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs14",
+    "deploy-report": "gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs14",
     "logs": "gcloud functions logs read --limit 50"
   },
   "author": "Mike Edmunds",
   "license": "MIT",
+  "engines": {
+    "node": "14.x.x"
+  },
   "dependencies": {
-    "@google-cloud/bigquery": "^4.7.0",
+    "@google-cloud/bigquery": "^5.5.0",
     "moment": "^2.26.0"
+  },
+  "devDependencies": {
+    "@google-cloud/functions-framework": "^1.7.1",
+    "@google-cloud/pubsub": "^2.11.0",
+    "@types/jest": "^26.0.22",
+    "@types/node": "^14.14.41",
+    "jest": "^26.6.3",
+    "jest-express": "^1.12.0",
+    "ts-jest": "^26.5.5",
+    "typescript": "^4.2.4"
   }
 }
