@@ -3,15 +3,10 @@
 // https://us-central1-molten-turbine-171801.cloudfunctions.net/report
 
 
-import {BigQuery} from '@google-cloud/bigquery';
 import type {HttpFunction} from '@google-cloud/functions-framework/build/src/functions';
 import moment, {Moment} from 'moment';
+import {bigquery} from './bigquery';
 import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId, tableId} from './config';
-
-
-const bigquery = new BigQuery({
-  projectId: projectId,
-});
 
 
 type TTime = Moment | number | undefined;
@@ -25,7 +20,7 @@ interface TReportDef {
 }
 
 
-const reports: Record<TReportType, TReportDef> = {
+export const reportDefs: Record<TReportType, TReportDef> = {
   recent: {
     query: `
       #standardSQL
@@ -120,7 +115,7 @@ export const report: HttpFunction = (req, res) => {
 
   const rawType = Array.isArray(req.query.type) ? req.query.type[0] : req.query.type;
   const type = typeof rawType === 'string' ? rawType.toLowerCase() as TReportType : 'daily';
-  const report = reports[type];
+  const report = reportDefs[type];
   if (!report) {
     res.status(400).json({error: `Unknown 'type'`}).end();
     return;

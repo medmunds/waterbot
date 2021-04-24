@@ -2,15 +2,11 @@
 // gcloud functions logs read dataCapture --limit 10
 
 
-import {BigQuery} from '@google-cloud/bigquery';
 import type {EventFunction} from '@google-cloud/functions-framework/build/src/functions';
 import type {Message} from '@google-cloud/pubsub';
-import {CUFT_PER_METER_TICK, datasetId, projectId, tableId} from './config';
+import {bigquery} from './bigquery';
+import {CUFT_PER_METER_TICK, datasetId, tableId} from './config';
 
-
-const bigquery = new BigQuery({
-  projectId: projectId,
-});
 
 interface ParticleMessageAttributes {
   device_id: string;
