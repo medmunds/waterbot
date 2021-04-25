@@ -15,3 +15,7 @@
 
 build
 node_modules
+
+# Test code is not needed in deployed function
+jest.config.js
+*.test.ts
