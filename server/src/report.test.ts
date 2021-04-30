@@ -1,25 +1,26 @@
 import {Request} from 'jest-express/lib/request';
 import {Response} from 'jest-express/lib/response';
 import {mocked} from 'ts-jest/utils';
+import {DateTime} from 'luxon';
 import {bigquery} from './bigquery';
 import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './config';
 import {report, reportDefs} from './report';
 
 
 // Mock DateTime.utc() for consistent "now"
-const mockNowString = "2020-02-22T14:23:45Z";
-const mockNowDate = new Date(mockNowString); // Node 14 Date constructor accepts ISO string
-const mockNowTimestamp = +mockNowDate;
+const mockNowString = "2020-02-22T14:23:45.123Z";
+const mockNowDateTime = DateTime.fromISO(mockNowString, {zone: 'utc'});
+const mockNowTimestamp = mockNowDateTime.toMillis();
 jest.mock('luxon', () => {
   const luxon = jest.requireActual('luxon');
-  const fixedUtcNow = luxon.DateTime.fromISO("2020-02-22T14:23:45Z", {zone: 'utc'});
+  const fixedUtcNow = luxon.DateTime.fromISO("2020-02-22T14:23:45.123Z", {zone: 'utc'});
   luxon.DateTime.utc = jest.fn().mockReturnValue(fixedUtcNow);
   return luxon;
 });
 
 // Mock BigQuery (as used by report function)
 jest.mock('./bigquery');
-const mockedTimestamp = jest.fn().mockReturnValue("MOCKED_TIMESTAMP");
+const mockedTimestamp = jest.fn().mockImplementation(d => DateTime.fromJSDate(d, {zone: 'utc'}).toISO());
 const mockedQuery = jest.fn().mockResolvedValue([[]]);
 const mockedBigQuery = mocked(bigquery);
 mockedBigQuery.timestamp = mockedTimestamp;
@@ -76,15 +77,12 @@ test(`recent report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2020-02-08T00:00:00.000Z", // start of day 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.recent.query,
     useLegacySql: false,
   });
-
-  // start_time is start of day 14 days before "now"
-  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2020-02-08T00:00:00Z"));
 });
 
 test(`hourly report`, async () => {
@@ -125,15 +123,12 @@ test(`hourly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2020-02-08T00:00:00.000Z", //start of day 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.hourly.query,
     useLegacySql: false,
   });
-
-  // start_time is start of day 14 days before "now"
-  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2020-02-08T00:00:00Z"));
 });
 
 test(`daily report`, async () => {
@@ -159,15 +154,12 @@ test(`daily report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2019-01-01T00:00:00.000Z", // start of year 12 months before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.daily.query,
     useLegacySql: false,
   });
-
-  // start_time is start of year 12 months before now
-  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2019-01-01T00:00:00Z"));
 });
 
 test(`monthly report`, async () => {
@@ -193,15 +185,12 @@ test(`monthly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2017-01-01T00:00:00.000Z", // start of year 3 years before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.monthly.query,
     useLegacySql: false,
   });
-
-  // start_time is start of year 3 years before now
-  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2017-01-01T00:00:00Z"));
 });
 
 test(`default report type is daily`, async () => {
