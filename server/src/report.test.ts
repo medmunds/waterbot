@@ -6,6 +6,17 @@ import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './conf
 import {report, reportDefs} from './report';
 
 
+// Mock moment.utc() for consistent "now"
+const mockNowString = "2020-02-22T14:23:45Z";
+const mockNowDate = new Date(mockNowString); // Node 14 Date constructor accepts ISO string
+const mockNowTimestamp = +mockNowDate;
+jest.mock('moment', () => {
+  const moment = jest.requireActual('moment');
+  const fixedUtcNow = moment.utc("2020-02-22T14:23:45Z", /*strict=*/true);
+  moment.utc = jest.fn().mockReturnValue(fixedUtcNow);
+  return moment;
+});
+
 // Mock BigQuery (as used by report function)
 jest.mock('./bigquery');
 const mockedTimestamp = jest.fn().mockReturnValue("MOCKED_TIMESTAMP");
@@ -55,7 +66,7 @@ test(`recent report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -71,6 +82,9 @@ test(`recent report`, async () => {
     query: reportDefs.recent.query,
     useLegacySql: false,
   });
+
+  // start_time is start of day 14 days before "now"
+  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2020-02-08T00:00:00Z"));
 });
 
 test(`hourly report`, async () => {
@@ -101,7 +115,7 @@ test(`hourly report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -117,6 +131,9 @@ test(`hourly report`, async () => {
     query: reportDefs.hourly.query,
     useLegacySql: false,
   });
+
+  // start_time is start of day 14 days before "now"
+  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2020-02-08T00:00:00Z"));
 });
 
 test(`daily report`, async () => {
@@ -132,7 +149,7 @@ test(`daily report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=43200");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -148,6 +165,9 @@ test(`daily report`, async () => {
     query: reportDefs.daily.query,
     useLegacySql: false,
   });
+
+  // start_time is start of year 12 months before now
+  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2019-01-01T00:00:00Z"));
 });
 
 test(`monthly report`, async () => {
@@ -163,7 +183,7 @@ test(`monthly report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=86400");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -179,6 +199,9 @@ test(`monthly report`, async () => {
     query: reportDefs.monthly.query,
     useLegacySql: false,
   });
+
+  // start_time is start of year 3 years before now
+  expect(mockedTimestamp).toHaveBeenCalledWith(new Date("2017-01-01T00:00:00Z"));
 });
 
 test(`default report type is daily`, async () => {
