@@ -6,15 +6,15 @@ import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './conf
 import {report, reportDefs} from './report';
 
 
-// Mock moment.utc() for consistent "now"
+// Mock DateTime.utc() for consistent "now"
 const mockNowString = "2020-02-22T14:23:45Z";
 const mockNowDate = new Date(mockNowString); // Node 14 Date constructor accepts ISO string
 const mockNowTimestamp = +mockNowDate;
-jest.mock('moment', () => {
-  const moment = jest.requireActual('moment');
-  const fixedUtcNow = moment.utc("2020-02-22T14:23:45Z", /*strict=*/true);
-  moment.utc = jest.fn().mockReturnValue(fixedUtcNow);
-  return moment;
+jest.mock('luxon', () => {
+  const luxon = jest.requireActual('luxon');
+  const fixedUtcNow = luxon.DateTime.fromISO("2020-02-22T14:23:45Z", {zone: 'utc'});
+  luxon.DateTime.utc = jest.fn().mockReturnValue(fixedUtcNow);
+  return luxon;
 });
 
 // Mock BigQuery (as used by report function)
