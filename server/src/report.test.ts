@@ -7,14 +7,14 @@ import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './conf
 import {report, reportDefs} from './report';
 
 
-// Mock DateTime.utc() for consistent "now"
+// Mock DateTime.now() for consistent "now"
 const mockNowString = "2020-02-22T14:23:45.123Z";
 const mockNowDateTime = DateTime.fromISO(mockNowString, {zone: 'utc'});
 const mockNowTimestamp = mockNowDateTime.toMillis();
 jest.mock('luxon', () => {
   const luxon = jest.requireActual('luxon');
-  const fixedUtcNow = luxon.DateTime.fromISO("2020-02-22T14:23:45.123Z", {zone: 'utc'});
-  luxon.DateTime.utc = jest.fn().mockReturnValue(fixedUtcNow);
+  const fixedNow = luxon.DateTime.fromISO("2020-02-22T14:23:45.123Z", {zone: 'utc'});
+  luxon.DateTime.now = jest.fn().mockReturnValue(fixedNow);
   return luxon;
 });
 
@@ -77,7 +77,7 @@ test(`recent report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2020-02-08T00:00:00.000Z", // start of day 14 days before "now"
+      start_timestamp: "2020-02-08T08:00:00.000Z", // start of day (in report timezone) 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.recent.query,
@@ -123,7 +123,7 @@ test(`hourly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2020-02-08T00:00:00.000Z", //start of day 14 days before "now"
+      start_timestamp: "2020-02-08T08:00:00.000Z", //start of day (in report timezone) 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.hourly.query,
@@ -154,7 +154,7 @@ test(`daily report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2019-01-01T00:00:00.000Z", // start of year 12 months before "now"
+      start_timestamp: "2019-01-01T08:00:00.000Z", // start of year (in report timezone) 12 months before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.daily.query,
@@ -185,7 +185,7 @@ test(`monthly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2017-01-01T00:00:00.000Z", // start of year 3 years before "now"
+      start_timestamp: "2017-01-01T08:00:00.000Z", // start of year (in report timezone) 3 years before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.monthly.query,

@@ -120,7 +120,7 @@ export const report: HttpFunction = (req, res) => {
     return;
   }
 
-  const timezone = req.query.timezone || defaultTimezone;
+  const timezone = defaultTimezone;
   const device_id = Array.isArray(req.query.device_id) ? req.query.device_id[0] : req.query.device_id;
   if (!device_id) {
     res.status(400).json({error: `Param 'device_id' is required`}).end();
@@ -128,7 +128,7 @@ export const report: HttpFunction = (req, res) => {
   }
 
   const query = report.query;
-  const now = DateTime.utc();
+  const now = DateTime.now().setZone(timezone);
   const start_time = report.start_time(now);
   const start_timestamp = bigquery.timestamp(start_time.toJSDate());
 
