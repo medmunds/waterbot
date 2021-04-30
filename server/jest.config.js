@@ -10,6 +10,9 @@ module.exports = {
   // Automatically reset mock state between every test
   // resetMocks: false,
 
+  // The root directory that Jest should scan for tests and modules within
+  rootDir: "src",
+
   // The test environment that will be used for testing
   testEnvironment: "node",
 };
