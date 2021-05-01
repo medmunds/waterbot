@@ -4,18 +4,17 @@
 
 
 import type {HttpFunction} from '@google-cloud/functions-framework/build/src/functions';
-import moment, {Moment} from 'moment';
+import {DateTime} from 'luxon';
 import {bigquery} from './bigquery';
 import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId, tableId} from './config';
 
 
-type TTime = Moment | number | undefined;
 type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
 
 
 interface TReportDef {
   query: string;
-  start_time: (now: TTime) => Moment;
+  start_time: (now?: DateTime) => DateTime;
   cache_seconds: number;
 }
 
@@ -38,7 +37,7 @@ export const reportDefs: Record<TReportType, TReportDef> = {
         AND device_id = @device_id
       ORDER BY timestamp ASC
       ;`,
-    start_time: (now) => moment(now).startOf('day').subtract(14, 'days'),
+    start_time: (now) => (now ?? DateTime.now()).startOf('day').minus({days: 14}),
     cache_seconds: 5 * 60,
   },
   hourly: {
@@ -60,7 +59,7 @@ export const reportDefs: Record<TReportType, TReportDef> = {
       GROUP BY \`hour\`
       ORDER BY \`hour\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('day').subtract(14, 'days'),
+    start_time: (now) => (now ?? DateTime.now()).startOf('day').minus({days: 14}),
     cache_seconds: 5 * 60,
   },
   daily: {
@@ -78,7 +77,7 @@ export const reportDefs: Record<TReportType, TReportDef> = {
       GROUP BY \`date\`
       ORDER BY \`date\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('year').subtract(12, 'months'),
+    start_time: (now) => (now ?? DateTime.now()).startOf('year').minus({months: 12}),
     cache_seconds: 12 * 60 * 60,
   },
   monthly: {
@@ -96,7 +95,7 @@ export const reportDefs: Record<TReportType, TReportDef> = {
       GROUP BY \`month\`
       ORDER BY \`month\` ASC
       ;`,
-    start_time: (now) => moment(now).startOf('year').subtract(3, 'years'),
+    start_time: (now) => (now ?? DateTime.now()).startOf('year').minus({years: 3}),
     cache_seconds: 24 * 60 * 60,
   },
 };
@@ -121,7 +120,7 @@ export const report: HttpFunction = (req, res) => {
     return;
   }
 
-  const timezone = req.query.timezone || defaultTimezone;
+  const timezone = defaultTimezone;
   const device_id = Array.isArray(req.query.device_id) ? req.query.device_id[0] : req.query.device_id;
   if (!device_id) {
     res.status(400).json({error: `Param 'device_id' is required`}).end();
@@ -129,9 +128,9 @@ export const report: HttpFunction = (req, res) => {
   }
 
   const query = report.query;
-  const now = moment.utc();
+  const now = DateTime.now().setZone(timezone);
   const start_time = report.start_time(now);
-  const start_timestamp = bigquery.timestamp(start_time.toDate());
+  const start_timestamp = bigquery.timestamp(start_time.toJSDate());
 
   const queryOptions = {
     query,
@@ -156,7 +155,7 @@ export const report: HttpFunction = (req, res) => {
       console.log(`Query ${type} complete: ${rows.length} rows`);
       const result = {
         data: rows,
-        timestamp: +now,
+        timestamp: +now.toJSDate(),
         // would be nice if we could determine whether BigQuery result was cached
       };
       res.set('Cache-Control', `public, max-age=${report.cache_seconds}`);

@@ -1,14 +1,26 @@
 import {Request} from 'jest-express/lib/request';
 import {Response} from 'jest-express/lib/response';
 import {mocked} from 'ts-jest/utils';
+import {DateTime} from 'luxon';
 import {bigquery} from './bigquery';
 import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './config';
 import {report, reportDefs} from './report';
 
 
+// Mock DateTime.now() for consistent "now"
+const mockNowString = "2020-02-22T14:23:45.123Z";
+const mockNowDateTime = DateTime.fromISO(mockNowString, {zone: 'utc'});
+const mockNowTimestamp = mockNowDateTime.toMillis();
+jest.mock('luxon', () => {
+  const luxon = jest.requireActual('luxon');
+  const fixedNow = luxon.DateTime.fromISO("2020-02-22T14:23:45.123Z", {zone: 'utc'});
+  luxon.DateTime.now = jest.fn().mockReturnValue(fixedNow);
+  return luxon;
+});
+
 // Mock BigQuery (as used by report function)
 jest.mock('./bigquery');
-const mockedTimestamp = jest.fn().mockReturnValue("MOCKED_TIMESTAMP");
+const mockedTimestamp = jest.fn().mockImplementation(d => DateTime.fromJSDate(d, {zone: 'utc'}).toISO());
 const mockedQuery = jest.fn().mockResolvedValue([[]]);
 const mockedBigQuery = mocked(bigquery);
 mockedBigQuery.timestamp = mockedTimestamp;
@@ -55,7 +67,7 @@ test(`recent report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -65,7 +77,7 @@ test(`recent report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2020-02-08T08:00:00.000Z", // start of day (in report timezone) 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.recent.query,
@@ -101,7 +113,7 @@ test(`hourly report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -111,7 +123,7 @@ test(`hourly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2020-02-08T08:00:00.000Z", //start of day (in report timezone) 14 days before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.hourly.query,
@@ -132,7 +144,7 @@ test(`daily report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=43200");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -142,7 +154,7 @@ test(`daily report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2019-01-01T08:00:00.000Z", // start of year (in report timezone) 12 months before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.daily.query,
@@ -163,7 +175,7 @@ test(`monthly report`, async () => {
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=86400");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: expect.any(Number)});
+  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -173,7 +185,7 @@ test(`monthly report`, async () => {
     params: {
       cuft_decimal_places: CUFT_DECIMAL_PLACES,
       device_id: "TEST_DEVICE_ID",
-      start_timestamp: "MOCKED_TIMESTAMP",
+      start_timestamp: "2017-01-01T08:00:00.000Z", // start of year (in report timezone) 3 years before "now"
       timezone: defaultTimezone,
     },
     query: reportDefs.monthly.query,
