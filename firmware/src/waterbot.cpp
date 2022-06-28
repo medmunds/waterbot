@@ -109,7 +109,7 @@ void publishData() {
         usageInterval = now - lastPublishTime;
         usage = thisPulseCount - lastPublishedPulseCount;
     }
-    int rssi = WiFi.RSSI();  // report whenever we're publishing
+    int rssi = (int8_t) WiFi.RSSI();  // report whenever we're publishing
     float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
     float stateOfCharge = batteryMonitor.getSoC();
 
