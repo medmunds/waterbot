@@ -8,8 +8,9 @@
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
 STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
+SYSTEM_THREAD(ENABLED);
 
-const char *WATERBOT_VERSION = "0.1.1";
+const char * const WATERBOT_VERSION = "0.2.0";
 
 PowerShield batteryMonitor;
 
@@ -31,25 +32,35 @@ const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publi
 // and stay away this long (for setup/diagnostics/updates):
 const unsigned long RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
 
+// don't bother sleeping for less than this
+const unsigned long MIN_SLEEP_TIME = 10 * SECONDS;
+
 const unsigned long SIGNAL_MSEC_ON = 350;
 const unsigned long SIGNAL_MSEC_OFF = 150;
 
+// reject pulses shorter than this as noise
+// (must be less than meter pulse width at maximum flow)
 const unsigned long DEBOUNCE_MSEC = 300;
 
 
 // Hardware constants
 
-const int PIN_PULSE_SWITCH = WKP;
-const int PIN_LED_SIGNAL = D7; // Blink to indicate meter pulses
+// PIN_PULSE_SWITCH is meter connection:
+//   * must support attachInterrupt
+//   * must support wake from ultra-low-power sleep
+//   * must not conflict with PowerShield (D0, D1, or D3)
+const pin_t PIN_PULSE_SWITCH = D2; // Meter
+
+const pin_t PIN_LED_SIGNAL = D7; // Blink to indicate meter pulses
 
 
 // Cloud messaging constants
 
-const char* EVENT_DATA = "waterbot/data"; // publish data to cloud
+const char* const EVENT_DATA = "waterbot/data"; // publish data to cloud
 
-const char* FUNC_SET_READING = "setReading"; // reset from cloud
-const char* FUNC_PUBLISH_NOW = "publishNow";
-const char* FUNC_SLEEP_NOW = "sleepNow";
+const char* const FUNC_SET_READING = "setReading"; // reset from cloud
+const char* const FUNC_PUBLISH_NOW = "publishNow";
+const char* const FUNC_SLEEP_NOW = "sleepNow";
 
 
 // Persistent data
@@ -62,10 +73,17 @@ retained volatile unsigned long nextPublishInterval = 0; // secs after lastPubli
 retained unsigned long publishCount = 0; // number of publishes since power up
 
 
-// Non-persistent global data (lost during deep sleep)
+// Non-persistent global data (lost during hibernate)
 
 volatile unsigned long pulsesToSignal = 0;
 volatile unsigned long stayAwakeUntilMillis = 0;
+
+char publishDataBuf[particle::protocol::MAX_EVENT_DATA_LENGTH];
+
+Thread *pulseSignalThread = nullptr;
+
+void pulseTimerCallback(void);
+Timer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
 
 
 inline void stayAwakeForMsec(unsigned long msec) {
@@ -78,20 +96,26 @@ inline void stayAwakeForMsec(unsigned long msec) {
     }
 }
 
-void checkForPulse() {
-    // Called for both pulse interrupts and timeout wakeup from deep sleep.
-    // Check the pulse pin status to disambiguate.
-    // https://community.particle.io/t/photon-wkp-pin-interupt-flag-question/14280/3
-    static unsigned long lastPulseMillis = 0;
-    unsigned long now = millis();
-    if (digitalRead(PIN_PULSE_SWITCH) == HIGH
-        && (lastPulseMillis == 0 || now >= lastPulseMillis + DEBOUNCE_MSEC)
-    ) {
-        lastPulseMillis = now;
-        pulseCount += 1;
-        nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
-        pulsesToSignal += 1;
-        stayAwakeForMsec(DEBOUNCE_MSEC);
+
+void pulseISR() {
+    // Interrupt handler for PIN_PULSE_SWITCH.
+    // Start (restart) the debounce timer.
+    // For a real pulse, the switch will still be closed when the timer fires.
+    // For a bounce, we'll end up back in here (and restart the timer) shortly.
+    // For transient noise, the switch will re-open before the timer fires.
+    pulseDebounceTimer.resetFromISR(); // also starts timer if not already running
+}
+
+void pulseTimerCallback() {
+    // Callback for debounceTimer. 
+    // If pulse switch has stayed closed, record a pulse. 
+    // (If switch opened during the timer period, ignore it as noise.)
+    ATOMIC_BLOCK() { 
+        if (digitalRead(PIN_PULSE_SWITCH) == LOW) {
+            pulseCount += 1;
+            nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
+            pulsesToSignal += 1; 
+        }
     }
 }
 
@@ -99,6 +123,7 @@ void checkForPulse() {
 void publishData() {
     if (!Particle.connected()) {
         Particle.connect();  // turns on WiFi, etc.; blocks until ready
+        waitUntil(Particle.connected);
     }
 
     unsigned long now, thisPulseCount, usageInterval, usage;
@@ -109,19 +134,34 @@ void publishData() {
         usageInterval = now - lastPublishTime;
         usage = thisPulseCount - lastPublishedPulseCount;
     }
-    int rssi = (int8_t) WiFi.RSSI();  // report whenever we're publishing
+    WiFiSignal signal = WiFi.RSSI();  // report whenever we're publishing
+    float rssi = signal.getStrengthValue(); // dB [-90, 0]
+    float snr = signal.getQualityValue(); // dB [0, 90]
     float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
     float stateOfCharge = batteryMonitor.getSoC();
 
-    // format all our vars into JSON; note Particle allows 255 chars max
-    String data = String::format(
-        "{\"t\": %d, \"seq\": %u, \"per\": %u,"
-        " \"cur\": %u, \"lst\": %u, \"use\": %u,"
-        " \"sig\": %d, \"btv\": %0.2f, \"btp\": %0.2f, \"v\": \"%s\"}",
-        now, publishCount, usageInterval,
-        thisPulseCount, lastPublishedPulseCount, usage,
-        rssi, cellVoltage, stateOfCharge, WATERBOT_VERSION);
-    if (Particle.publish(EVENT_DATA, data)) {
+    // format all our vars into JSON
+    JSONBufferWriter writer(publishDataBuf, sizeof(publishDataBuf) - 1);
+    writer.beginObject();
+    {
+        writer.name("t").value(now);
+        writer.name("seq").value(publishCount);
+        writer.name("per").value(usageInterval);
+        writer.name("cur").value(thisPulseCount);
+        writer.name("lst").value(lastPublishedPulseCount);
+        writer.name("use").value(usage);
+        writer.name("sig").value(rssi);
+        writer.name("snr").value(snr);
+        writer.name("btv").value(cellVoltage);
+        writer.name("btp").value(stateOfCharge);
+        writer.name("v").value(WATERBOT_VERSION);
+    }
+    writer.endObject();
+    // TODO: if (writer.dataSize() > writer.bufferSize()) message is truncated!
+    writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = 0;
+
+    // publish event, blocking until success or failure
+    if (Particle.publish(EVENT_DATA, publishDataBuf, WITH_ACK)) {
         ATOMIC_BLOCK() {
             lastPublishTime = now;
             lastPublishedPulseCount = thisPulseCount;
@@ -167,28 +207,22 @@ int publishNow(String args) {
 unsigned int calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
 
-    // First, are we still doing work we need to stay awake for?
+    if (pulseDebounceTimer.isActive()) {
+        return 0; // stay awake to complete pulse detection
+    }
+
+    if (pulsesToSignal > 0) {
+        return 0; // stay awake to complete signaling
+    }
+
     if (millis() <= stayAwakeUntilMillis) {
-        return 0;
+        return 0; // stay awake for minimum period (e.g., after reset)
     }
 
     if (!Time.isValid()) {
         return 0;
     }
     unsigned long now = Time.now();
-
-    if (now < lastPublishTime + 5 * SECONDS) {
-        // Publishing in progress: wait 5 seconds to drain queue.
-        // (See https://github.com/spark/firmware/issues/1165.
-        // In firmware 0.7, should instead be able to check result
-        // of Particle.publish as a Future.)
-        return 0;
-    }
-    // TODO: check if firmware update in progress
-
-    if (pulsesToSignal > 0) {
-        return 0; // stay awake to signal reading
-    }
 
     // Sleep until time for next publish
     unsigned int nextPublishTime = lastPublishTime + nextPublishInterval;
@@ -198,31 +232,43 @@ unsigned int calcSleepTime() {
     return nextPublishTime - now;
 }
 
-
 void disconnectCleanly() {
-    // complete processing any queued events before disconnecting
-    // https://community.particle.io/t/electron-product-connects-to-the-cloud-but-cant-get-queued-firmware-updates/30741/8
-    Particle.disconnect();
-    while (!Particle.disconnected()) {
-        for (int i = 0; i < 100; i++) {
-            Particle.process();
-            delay(10);
-        }
-    }
+    // Disconnect from Particle Cloud and turn off WiFi power cleanly.
+    Particle.disconnect();  // relies on CloudDisconnectOptions.graceful (see setup)
+    waitUntil(Particle.disconnected);
     WiFi.off();
 }
 
 
 void sleepDevice(unsigned int sleepSecs) {
-    // Enter minimum power mode, waking on rising WKP or after sleepTime secs.
-    // (Uses deep sleep if possible, with workaround for likely hardware bug
-    // when WKP held high during deep sleep: https://github.com/spark/firmware/issues/1262.)
-    if (digitalRead(WKP) == LOW) {
-        // Can use deep sleep mode
-        System.sleep(SLEEP_MODE_DEEP, sleepSecs);
-    } else {
-        // Must avoid deep sleep until WKP goes low; use stop mode until then
-        System.sleep(WKP, FALLING, sleepSecs);
+    // Enter ultra low power mode (after finishing any cloud communication),
+    // waking on PIN_PULSE_SWITCH or after sleepSecs secs.
+    System.sleep(
+        SystemSleepConfiguration()
+            .mode(SystemSleepMode::ULTRA_LOW_POWER)
+            .flag(SystemSleepFlag::WAIT_CLOUD)
+            .gpio(PIN_PULSE_SWITCH, FALLING)
+            .duration(sleepSecs * 1000)
+    );
+}
+
+
+void displayPulseSignals() {
+    // This runs in a separate thread, so it isn't blocked
+    // by long running cloud functions in the main thread.
+    // (Note that delay() yields to other threads.)
+    while (true) {
+        if (pulsesToSignal > 0) {
+            digitalWrite(PIN_LED_SIGNAL, HIGH);
+            delay(SIGNAL_MSEC_ON);
+            ATOMIC_BLOCK() {
+                pulsesToSignal -= 1; 
+            }
+            digitalWrite(PIN_LED_SIGNAL, LOW);
+            delay(SIGNAL_MSEC_OFF);
+        } else {
+            delay(50ms);
+        }
     }
 }
 
@@ -231,44 +277,42 @@ void setup() {
     pinMode(PIN_LED_SIGNAL, OUTPUT);
     digitalWrite(PIN_LED_SIGNAL, LOW);
 
-    pinMode(PIN_PULSE_SWITCH, INPUT_PULLDOWN);
-    attachInterrupt(PIN_PULSE_SWITCH, checkForPulse, RISING);  // deep sleep requires rising edge
-
-    // why are we powering up?
-    switch (System.resetReason()) {
-    case RESET_REASON_PIN_RESET:
-        // user pressed reset button
-        Particle.connect(); // blocks!
-        stayAwakeForMsec(RESET_STAY_AWAKE_INTERVAL * 1000);
-        break;
-    case RESET_REASON_POWER_MANAGEMENT:
-        // waking from deep sleep
-        // if this was due to WKP, need to record the pulse
-        checkForPulse();
-        break;
-    case RESET_REASON_POWER_DOWN:
-        // battery/power re-attached
-        // maybe call batteryMonitor.quickStart() (after batteryMonitor.begin())
-        break;
-    case RESET_REASON_UPDATE:
-        // new firmware
-        break;
-    default:
-        // safe mode, etc. are handled by system firmware
-        break;
-    }
+    pinMode(PIN_PULSE_SWITCH, INPUT_PULLUP);
+    attachInterrupt(PIN_PULSE_SWITCH, pulseISR, FALLING);
 
     batteryMonitor.begin();
+    if (System.resetReason() == RESET_REASON_POWER_DOWN) {
+        batteryMonitor.quickStart();
+    }
+
+    if (!pulseSignalThread) {
+        pulseSignalThread = new Thread(
+            "pulseSignal", 
+            displayPulseSignals, 
+            OS_THREAD_PRIORITY_DEFAULT, 
+            256U // only need a tiny stack
+        );
+    }
 
     Particle.function(FUNC_SET_READING, setReading);
     Particle.function(FUNC_PUBLISH_NOW, publishNow);
     Particle.function(FUNC_SLEEP_NOW, sleepNow);
 
+    Particle.setDisconnectOptions(
+        CloudDisconnectOptions()
+            .graceful(true) // required for disconnectCleanly
+            .timeout(5s)
+    );
+
+    // TODO: maybe check battery level before connecting?
+    Particle.connect();
+    waitUntil(Particle.connected);
+    if (System.resetReason() == RESET_REASON_PIN_RESET) {
+        stayAwakeForMsec(RESET_STAY_AWAKE_INTERVAL * 1000);
+    }
+
     // if we lost track of time while powered down, restore it now
     if (!Time.isValid()) {
-        if (!Particle.connected()) {
-            Particle.connect();
-        }
         waitUntil(Particle.syncTimeDone); // TODO: timeout?
     }
 }
@@ -276,26 +320,16 @@ void setup() {
 
 void loop() {
     // publish
-    if (Time.isValid() && Time.now() >= lastPublishTime + nextPublishInterval) {
+    if (Time.isValid() && (unsigned long)Time.now() >= lastPublishTime + nextPublishInterval) {
         publishData();
     }
 
-    if (pulsesToSignal > 0) {
-        pulsesToSignal -= 1;
-        digitalWrite(PIN_LED_SIGNAL, HIGH);
-        delay(SIGNAL_MSEC_ON);
-        digitalWrite(PIN_LED_SIGNAL, LOW);
-        if (pulsesToSignal > 0) {
-            delay(SIGNAL_MSEC_OFF);
-        }
-    }
-
-    // sleep
+    // sleep if appropriate
     unsigned int sleepTime = calcSleepTime();
-    if (sleepTime > 0) {
+    if (sleepTime > MIN_SLEEP_TIME) {
         disconnectCleanly();
-        sleepTime = calcSleepTime();  // might be less than before, if disconnecting took a while
-        if (sleepTime > 0) {
+        sleepTime = calcSleepTime();  // might have changed while waiting for disconnect
+        if (sleepTime > MIN_SLEEP_TIME) {
             sleepDevice(sleepTime);
         }
     }
