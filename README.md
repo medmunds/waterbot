@@ -31,8 +31,10 @@ You'll also need access to a WiFi network. We have plenty of those in SF.
 (Particle also makes a similar "Electron" board that uses cellular instead
 of WiFi; you could probably adapt this project without much effort.)
 
-Wiring (the Fritzing schematic is slightly outdated):
-* Connect the Photon's WKP and 3V3 pins directly to the meter's pulse output
+Wiring:
+* Connect the Photon's D2 and GND pins directly to the meter's pulse output
+* Connect the Photon's VBAT to GND (yes, GND); this ensures the Photon
+  initializes memory correctly on cold start
 * Connect the solar cell to the Power Shield's DC input screw terminals
 * (Optional, but recommended:) Connect the Photon's GND and RST pins to a pushbutton
   you can access relatively easily -- this lets you wake up the Photon for maintenance
