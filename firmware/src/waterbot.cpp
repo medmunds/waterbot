@@ -4,9 +4,7 @@
 
 #include <Particle.h>
 
-#define CIRCULAR_BUFFER_INT_SAFE
 #include <CircularBuffer.h>
-
 #include <PowerShield.h>
 
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
@@ -14,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.0";
+const char * const WATERBOT_VERSION = "0.3.1";
 
 PowerShield batteryMonitor;
 
@@ -34,27 +32,27 @@ const time32_t PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publishes
 
 // try to publish immediately if this many pulses
 // accumulate before PUBLISH_IN_USE_INTERVAL is reached
-const unsigned long PUBLISH_MAX_TIMESTAMPS = 20;
+const uint32_t PUBLISH_MAX_TIMESTAMPS = 20;
 
 // how many detailed pulse timestamps we can store
 // (without publishing, while cloud connection is unavailable);
 // beyond this, the total reading will still be accurate,
 // but older individual pulse timestamps won't be reported
-const unsigned long PULSE_TIMESTAMP_BUFFER_SIZE = 1000;
+const uint32_t PULSE_TIMESTAMP_BUFFER_SIZE = 600;
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
-const unsigned long RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
+const uint32_t RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
 
 // don't bother sleeping for less than this
 const time32_t MIN_SLEEP_TIME = 10 * SECONDS;
 
-const unsigned long SIGNAL_MSEC_ON = 350;
-const unsigned long SIGNAL_MSEC_OFF = 150;
+const uint32_t SIGNAL_MSEC_ON = 350;
+const uint32_t SIGNAL_MSEC_OFF = 150;
 
 // reject pulses shorter than this as noise
 // (must be less than meter pulse width at maximum flow)
-const unsigned long DEBOUNCE_MSEC = 300;
+const uint32_t DEBOUNCE_MSEC = 300;
 
 
 // Hardware constants
@@ -76,40 +74,130 @@ const char* const FUNC_SET_READING = "setReading"; // reset from cloud
 const char* const FUNC_PUBLISH_NOW = "publishNow";
 const char* const FUNC_SLEEP_NOW = "sleepNow";
 
+// FIFO of pulse timestamps (as Time.now() values).
+// Populated by pulseISR. Consumed by publishData.
+// On overflow, oldest pulse timestamps are lost.
+// (Note that CircularBuffer operations are not thread- or
+// interrupt-safe, so should be wrapped in ATOMIC_BLOCK.)
+typedef CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_SIZE> pulseTimestamps_t;
 
-// Persistent data
+// Fixed-size buffer for composing Particle.publish() message data.
+typedef std::array<char, particle::protocol::MAX_EVENT_DATA_LENGTH> publishDataBuf_t;
 
-retained volatile unsigned long pulseCount = 0;  // TODO: cache in EEPROM
+//
+// Retained data (backup RAM / SRAM)
+// So long as the device maintains battery power, this data will survive
+// reset, all forms of sleep (including hibernate), and (often) firmware updates.
+//
 
-retained time32_t lastPublishTime = 0;
-retained unsigned long lastPublishedPulseCount = 0;
-retained unsigned long publishCount = 0; // number of publishes since power up
+typedef struct {
+    // Keep all retained data in a single struct to prevent the compiler from
+    // rearranging it in newer versions. (It may still get relocated, which is
+    // detected by the magic number.)
+    // https://community.particle.io/t/retained-variables-are-reset-after-adding-a-new-one/58847/2
+    uint32_t magic;
+    uint16_t size;
+    uint16_t dataLayoutVersion;
+
+    volatile uint32_t pulseCount;
+
+    time32_t lastPublishTime;
+    uint32_t lastPublishedPulseCount;
+    uint32_t publishCount; // number of publishes since power up
+
+    uint32_t _spare1;
+    uint32_t _spare2;
+
+    // This doesn't work:
+    //   pulseTimestamps_t pulseTimestamps;
+    // because the compiler generates constructor code in the program init block
+    // (which clears the retained pulseTimestamps on every reset). Instead just
+    // allocate space for the object, and cast it below:
+    unsigned char pulseTimestampsBuf[sizeof(pulseTimestamps_t)];
+    
+    publishDataBuf_t publishDataBuf;
+
+    // If you add fields, add an initializer to validateRetainedData().
+    // If you rearrange or resize any fields, also increment this: 
+    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 1;
+
+} retainedData_t;
+
+retained retainedData_t retainedData;
+static_assert(sizeof(retainedData_t) <= 3068,
+    "Photon has only 3068 bytes of backup RAM for retainedData.");
+
+// Allow accessing retainedData members without always referring to the struct:
+volatile uint32_t& pulseCount = retainedData.pulseCount;
+time32_t& lastPublishTime = retainedData.lastPublishTime;
+uint32_t& lastPublishedPulseCount = retainedData.lastPublishedPulseCount;
+uint32_t& publishCount = retainedData.publishCount;
+pulseTimestamps_t& pulseTimestamps = reinterpret_cast<pulseTimestamps_t&>(retainedData.pulseTimestampsBuf);
+publishDataBuf_t& publishDataBuf = retainedData.publishDataBuf;
+
+// Don't change this (or you will invalidate all retainedData).
+// It's just a fixed, randomly-generated, non-zero number.
+const uint32_t RETAINED_DATA_MAGIC = 0x8abfc1b1;
 
 
-// Non-persistent global data (lost during hibernate)
+//
+// Non-persistent global data (lost during hibernate or reset)
+//
 
-volatile unsigned long pulsesToSignal = 0;
-volatile unsigned long stayAwakeUntilMillis = 0;
+volatile uint32_t pulsesToSignal = 0;
+volatile uint32_t stayAwakeUntilMillis = 0;
 volatile bool publishImmediately = false;
-
-char publishDataBuf[particle::protocol::MAX_EVENT_DATA_LENGTH];
 
 Thread *pulseSignalThread = nullptr;
 
 void pulseTimerCallback(void);
 Timer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
 
-// FIFO of pulse timestamps (as Time.now() values).
-// Populated by pulseISR. Consumed by publishData.
-// On overflow, oldest pulse timestamps are lost.
-// (Note that CircularBuffer operations are not thread- or
-// interrupt-safe, so should be wrapped in ATOMIC_BLOCK.)
-CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_SIZE> pulseTimestamps;
+//
+// Code
+//
+
+bool validateRetainedData() {
+    // Verify retainedData is usable, or initialize if not.
+    // Returns true if data was reinitialized.
+
+    if (retainedData.magic == RETAINED_DATA_MAGIC
+        && retainedData.size == sizeof(retainedData)
+        && retainedData.dataLayoutVersion == retainedData.CURRENT_DATA_LAYOUT_VERSION
+    ) {
+        // retainedData is (probably) fine
+        return true;
+    }
+
+    // Either retainedData has never been initialized, 
+    // or its layout has changed (due to a firmware update). 
+    // For now, just re-initialize everything.
+    // (Could get fancier with version migrations if needed later.)
+
+    // dataLayoutVersion 1:
+    retainedData.pulseCount = 0;
+    retainedData.lastPublishTime = 0;
+    retainedData.lastPublishedPulseCount = 0;
+    retainedData.publishCount = 0;
+    retainedData._spare1 = 0;
+    retainedData._spare2 = 0;
+
+    pulseTimestamps.clear(); // equivalent to CircularBuffer constructor
+    retainedData.publishDataBuf[0] = 0;
+
+    // If you add new retained data above, be sure to add
+    // an equivalent initializer here.
+
+    retainedData.magic = RETAINED_DATA_MAGIC;
+    retainedData.size = sizeof(retainedData);
+    retainedData.dataLayoutVersion = retainedData.CURRENT_DATA_LAYOUT_VERSION;
+    return false;
+}
 
 
-inline void stayAwakeForMsec(unsigned long msec) {
+inline void stayAwakeForMsec(uint32_t msec) {
     // don't allow sleep until at least msec from now
-    unsigned long now = millis();
+    uint32_t now = millis();
     if (now + msec > stayAwakeUntilMillis
         || msec > ULONG_MAX - now) // rollover
     {
@@ -186,8 +274,8 @@ void publishData() {
     }
 
     time32_t now, usageInterval;
-    unsigned long thisPulseCount;
-    long usage;
+    uint32_t thisPulseCount;
+    int32_t usage;
     ATOMIC_BLOCK() {
         // atomically capture a consistent set of data for the publish
         now = Time.now();
@@ -202,7 +290,7 @@ void publishData() {
     float stateOfCharge = batteryMonitor.getSoC();
 
     // format all our vars into JSON
-    JSONBufferWriter writer(publishDataBuf, sizeof(publishDataBuf) - 1);
+    JSONBufferWriter writer(publishDataBuf.data(), sizeof(publishDataBuf) - 1);
     writer.beginObject();
     {
         writer.name("t").value(now);
@@ -241,7 +329,7 @@ void publishData() {
     writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = 0;
 
     // publish event, blocking until success or failure
-    if (Particle.publish(EVENT_DATA, publishDataBuf, WITH_ACK)) {
+    if (Particle.publish(EVENT_DATA, publishDataBuf.data(), WITH_ACK)) {
         ATOMIC_BLOCK() {
             lastPublishTime = now;
             lastPublishedPulseCount = thisPulseCount;
@@ -345,6 +433,8 @@ void displayPulseSignals() {
 
 
 void setup() {
+    validateRetainedData();
+
     pinMode(PIN_LED_SIGNAL, OUTPUT);
     digitalWrite(PIN_LED_SIGNAL, LOW);
 
