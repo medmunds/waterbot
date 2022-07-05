@@ -1,0 +1,8 @@
+# Must include all library sources, to work around Particle's default
+# that ignores tpp files. (But must not include lib examples, which
+# aren't needed and don't always compile successfully.)
+lib/*/src/**
+
+# Must also include all of our own sources (using the same approach).
+src/**
+project.properties
