@@ -3,6 +3,10 @@
 // ------------
 
 #include <Particle.h>
+
+#define CIRCULAR_BUFFER_INT_SAFE
+#include <CircularBuffer.h>
+
 #include <PowerShield.h>
 
 STARTUP(System.enableFeature(FEATURE_RETAINED_MEMORY));
@@ -10,7 +14,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.2.0";
+const char * const WATERBOT_VERSION = "0.3.0";
 
 PowerShield batteryMonitor;
 
@@ -25,15 +29,25 @@ PowerShield batteryMonitor;
 
 // publish no more often than the in-use interval while water is running;
 // but when water isn't running, publish at least once every heartbeat interval
-const unsigned long PUBLISH_IN_USE_INTERVAL = 5 * MINUTES; // min between publishes
-const unsigned long PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publishes
+const time32_t PUBLISH_IN_USE_INTERVAL = 1 * MINUTES; // min between publishes
+const time32_t PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publishes
+
+// try to publish immediately if this many pulses
+// accumulate before PUBLISH_IN_USE_INTERVAL is reached
+const unsigned long PUBLISH_MAX_TIMESTAMPS = 20;
+
+// how many detailed pulse timestamps we can store
+// (without publishing, while cloud connection is unavailable);
+// beyond this, the total reading will still be accurate,
+// but older individual pulse timestamps won't be reported
+const unsigned long PULSE_TIMESTAMP_BUFFER_SIZE = 1000;
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
 const unsigned long RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
 
 // don't bother sleeping for less than this
-const unsigned long MIN_SLEEP_TIME = 10 * SECONDS;
+const time32_t MIN_SLEEP_TIME = 10 * SECONDS;
 
 const unsigned long SIGNAL_MSEC_ON = 350;
 const unsigned long SIGNAL_MSEC_OFF = 150;
@@ -67,9 +81,8 @@ const char* const FUNC_SLEEP_NOW = "sleepNow";
 
 retained volatile unsigned long pulseCount = 0;  // TODO: cache in EEPROM
 
-retained unsigned long lastPublishTime = 0;
+retained time32_t lastPublishTime = 0;
 retained unsigned long lastPublishedPulseCount = 0;
-retained volatile unsigned long nextPublishInterval = 0; // secs after lastPublishTime
 retained unsigned long publishCount = 0; // number of publishes since power up
 
 
@@ -77,6 +90,7 @@ retained unsigned long publishCount = 0; // number of publishes since power up
 
 volatile unsigned long pulsesToSignal = 0;
 volatile unsigned long stayAwakeUntilMillis = 0;
+volatile bool publishImmediately = false;
 
 char publishDataBuf[particle::protocol::MAX_EVENT_DATA_LENGTH];
 
@@ -84,6 +98,13 @@ Thread *pulseSignalThread = nullptr;
 
 void pulseTimerCallback(void);
 Timer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
+
+// FIFO of pulse timestamps (as Time.now() values).
+// Populated by pulseISR. Consumed by publishData.
+// On overflow, oldest pulse timestamps are lost.
+// (Note that CircularBuffer operations are not thread- or
+// interrupt-safe, so should be wrapped in ATOMIC_BLOCK.)
+CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_SIZE> pulseTimestamps;
 
 
 inline void stayAwakeForMsec(unsigned long msec) {
@@ -107,18 +128,56 @@ void pulseISR() {
 }
 
 void pulseTimerCallback() {
-    // Callback for debounceTimer. 
-    // If pulse switch has stayed closed, record a pulse. 
+    // Callback for debounceTimer.
+    // If pulse switch has stayed closed, record a pulse.
     // (If switch opened during the timer period, ignore it as noise.)
-    ATOMIC_BLOCK() { 
+    ATOMIC_BLOCK() {
         if (digitalRead(PIN_PULSE_SWITCH) == LOW) {
             pulseCount += 1;
-            nextPublishInterval = PUBLISH_IN_USE_INTERVAL;
-            pulsesToSignal += 1; 
+            pulsesToSignal += 1;
+            if (Time.isValid()) {
+                pulseTimestamps.push(Time.now());
+            }
         }
     }
 }
 
+
+time32_t calcNextPublishTime() {
+    // Return timestamp for next required publish, or 0 for publish immediately.
+    time32_t nextPublishTime = lastPublishTime + PUBLISH_HEARTBEAT_INTERVAL;
+
+    if (publishImmediately) {
+        // Publish requested by cloud function
+        nextPublishTime = 0;
+    } else {
+        // Publish when pulses to report
+        ATOMIC_BLOCK() {
+            if (!pulseTimestamps.isEmpty()) {
+                if (pulseTimestamps.isFull()
+                    || pulseTimestamps.size() >= PUBLISH_MAX_TIMESTAMPS
+                ) {
+                    // Too many pulseTimestamps; publish immediately
+                    nextPublishTime = 0;
+                } else {
+                    // Publish accumulated data after in-use interval
+                    nextPublishTime = std::min(
+                        pulseTimestamps.first() + PUBLISH_IN_USE_INTERVAL,
+                        nextPublishTime
+                    );
+                }
+            }
+        }
+    }
+
+    return nextPublishTime;
+}
+
+bool needToPublish() {
+    time32_t now = Time.isValid() ? Time.now() : 0;
+    time32_t nextPublishTime = calcNextPublishTime();
+    return (now >= nextPublishTime);
+}
 
 void publishData() {
     if (!Particle.connected()) {
@@ -126,7 +185,9 @@ void publishData() {
         waitUntil(Particle.connected);
     }
 
-    unsigned long now, thisPulseCount, usageInterval, usage;
+    time32_t now, usageInterval;
+    unsigned long thisPulseCount;
+    long usage;
     ATOMIC_BLOCK() {
         // atomically capture a consistent set of data for the publish
         now = Time.now();
@@ -155,9 +216,28 @@ void publishData() {
         writer.name("btv").value(cellVoltage);
         writer.name("btp").value(stateOfCharge);
         writer.name("v").value(WATERBOT_VERSION);
+        writer.name("pts").beginArray();
+        ATOMIC_BLOCK() {
+            // Consume as many pulseTimestamps as will fit.
+            // Publish pulseTimestamps as deltas from previous values
+            // (to save on json characters). First timestamp is encoded
+            // as delta from start of this interval.
+            time32_t previous = now - usageInterval;
+            while (!pulseTimestamps.isEmpty()) {
+                time32_t ts = pulseTimestamps.shift();
+                writer.value(ts - previous);
+                previous = ts;
+
+                if (writer.dataSize() > writer.bufferSize() - 15) {
+                    // Probably not enough space for another value
+                    // (and a comma and trailing ']' and '}' chars)
+                    break;
+                }
+            }
+        }
+        writer.endArray();
     }
     writer.endObject();
-    // TODO: if (writer.dataSize() > writer.bufferSize()) message is truncated!
     writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = 0;
 
     // publish event, blocking until success or failure
@@ -166,10 +246,7 @@ void publishData() {
             lastPublishTime = now;
             lastPublishedPulseCount = thisPulseCount;
             publishCount += 1;
-            if (pulseCount == thisPulseCount) {
-                // if there's no earlier event, reconnect at the heartbeat interval
-                nextPublishInterval = PUBLISH_HEARTBEAT_INTERVAL;
-            }
+            publishImmediately = false;
         }
     }
 }
@@ -181,12 +258,13 @@ int setReading(String args) {
         return -1;
     }
 
-    unsigned long now = Time.now();
+    time32_t now = Time.now();
     ATOMIC_BLOCK() {
         pulseCount = newPulseCount;
         lastPublishedPulseCount = newPulseCount;
+        pulseTimestamps.clear();
         lastPublishTime = now;
-        nextPublishInterval = 0; // publish immediately
+        publishImmediately = true;
     }
     return 0;
 }
@@ -199,12 +277,12 @@ int sleepNow(String args) {
 
 // Cloud function
 int publishNow(String args) {
-    nextPublishInterval = 0;
+    publishImmediately = true;
     return 0;
 }
 
 
-unsigned int calcSleepTime() {
+time32_t calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
 
     if (pulseDebounceTimer.isActive()) {
@@ -219,17 +297,10 @@ unsigned int calcSleepTime() {
         return 0; // stay awake for minimum period (e.g., after reset)
     }
 
-    if (!Time.isValid()) {
-        return 0;
-    }
-    unsigned long now = Time.now();
-
     // Sleep until time for next publish
-    unsigned int nextPublishTime = lastPublishTime + nextPublishInterval;
-    if (nextPublishTime <= now) {
-        return 0;
-    }
-    return nextPublishTime - now;
+    time32_t now = Time.isValid() ? Time.now() : 0;
+    time32_t nextPublishTime = calcNextPublishTime();
+    return (nextPublishTime > now) ? nextPublishTime - now : 0;
 }
 
 void disconnectCleanly() {
@@ -240,7 +311,7 @@ void disconnectCleanly() {
 }
 
 
-void sleepDevice(unsigned int sleepSecs) {
+void sleepDevice(time32_t sleepSecs) {
     // Enter ultra low power mode (after finishing any cloud communication),
     // waking on PIN_PULSE_SWITCH or after sleepSecs secs.
     System.sleep(
@@ -262,7 +333,7 @@ void displayPulseSignals() {
             digitalWrite(PIN_LED_SIGNAL, HIGH);
             delay(SIGNAL_MSEC_ON);
             ATOMIC_BLOCK() {
-                pulsesToSignal -= 1; 
+                pulsesToSignal -= 1;
             }
             digitalWrite(PIN_LED_SIGNAL, LOW);
             delay(SIGNAL_MSEC_OFF);
@@ -287,9 +358,9 @@ void setup() {
 
     if (!pulseSignalThread) {
         pulseSignalThread = new Thread(
-            "pulseSignal", 
-            displayPulseSignals, 
-            OS_THREAD_PRIORITY_DEFAULT, 
+            "pulseSignal",
+            displayPulseSignals,
+            OS_THREAD_PRIORITY_DEFAULT,
             256U // only need a tiny stack
         );
     }
@@ -320,12 +391,12 @@ void setup() {
 
 void loop() {
     // publish
-    if (Time.isValid() && (unsigned long)Time.now() >= lastPublishTime + nextPublishInterval) {
+    if (needToPublish()) {
         publishData();
     }
 
     // sleep if appropriate
-    unsigned int sleepTime = calcSleepTime();
+    time32_t sleepTime = calcSleepTime();
     if (sleepTime > MIN_SLEEP_TIME) {
         disconnectCleanly();
         sleepTime = calcSleepTime();  // might have changed while waiting for disconnect
