@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.2";
+const char * const WATERBOT_VERSION = "0.3.3";
 
 PowerShield batteryMonitor;
 
@@ -78,6 +78,7 @@ const char* const EVENT_DATA = "waterbot/data"; // publish data to cloud
 const char* const FUNC_SET_READING = "setReading"; // reset from cloud
 const char* const FUNC_PUBLISH_NOW = "publishNow";
 const char* const FUNC_SLEEP_NOW = "sleepNow";
+const char* const FUNC_SELECT_ANTENNA = "selectAntenna";
 
 // FIFO of pulse timestamps (as Time.now() values).
 // Populated by pulseISR. Consumed by publishData.
@@ -441,6 +442,25 @@ int publishNow(String args) {
     return 0;
 }
 
+// Cloud function: arg 1=internal, 2=external, anything else=auto
+// (Antenna is restored to auto when reset button pressed)
+int selectAntenna(String args) {
+    WLanSelectAntenna_TypeDef antennaType;
+    switch (args.toInt()) {
+        case 1:
+            antennaType = ANT_INTERNAL;
+            break;
+        case 2:
+            antennaType = ANT_EXTERNAL;
+            break;
+        default:
+            antennaType = ANT_AUTO;
+            break;
+    }
+    WiFi.selectAntenna(antennaType);
+    return 0;
+}
+
 
 time32_t calcSleepTime() {
     // Returns number of seconds to sleep -- or zero if we shouldn't sleep yet
@@ -530,6 +550,11 @@ void setup() {
     Particle.function(FUNC_SET_READING, setReading);
     Particle.function(FUNC_PUBLISH_NOW, publishNow);
     Particle.function(FUNC_SLEEP_NOW, sleepNow);
+    Particle.function(FUNC_SELECT_ANTENNA, selectAntenna);
+
+    if (System.resetReason() == RESET_REASON_PIN_RESET) {
+        WiFi.selectAntenna(ANT_AUTO);
+    }
 
     Particle.setDisconnectOptions(
         CloudDisconnectOptions()
