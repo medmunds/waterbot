@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.1";
+const char * const WATERBOT_VERSION = "0.3.2";
 
 PowerShield batteryMonitor;
 
@@ -46,6 +46,11 @@ const uint32_t RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
 
 // don't bother sleeping for less than this
 const time32_t MIN_SLEEP_TIME = 10 * SECONDS;
+
+// timeouts for connecting to WiFi and cloud
+const std::chrono::seconds NETWORK_CONNECT_TIMEOUT = 15s;
+const std::chrono::seconds CLOUD_CONNECT_TIMEOUT = 30s;
+const std::chrono::seconds CLOUD_DISCONNECT_TIMEOUT = 10s;
 
 const uint32_t SIGNAL_MSEC_ON = 350;
 const uint32_t SIGNAL_MSEC_OFF = 150;
@@ -101,6 +106,8 @@ typedef struct {
 
     volatile uint32_t pulseCount;
 
+    // These are updated at the time a publish data message is constructed
+    // (not when it is successfully delivered):
     time32_t lastPublishTime;
     uint32_t lastPublishedPulseCount;
     uint32_t publishCount; // number of publishes since power up
@@ -114,11 +121,11 @@ typedef struct {
     // (which clears the retained pulseTimestamps on every reset). Instead just
     // allocate space for the object, and cast it below:
     unsigned char pulseTimestampsBuf[sizeof(pulseTimestamps_t)];
-    
+
     publishDataBuf_t publishDataBuf;
 
     // If you add fields, add an initializer to validateRetainedData().
-    // If you rearrange or resize any fields, also increment this: 
+    // If you rearrange or resize any fields, also increment this:
     const uint16_t CURRENT_DATA_LAYOUT_VERSION = 1;
 
 } retainedData_t;
@@ -148,10 +155,18 @@ volatile uint32_t pulsesToSignal = 0;
 volatile uint32_t stayAwakeUntilMillis = 0;
 volatile bool publishImmediately = false;
 
+time32_t earliestNextPublishTime = 0; // Time.now; used for network delays and throttling
+time32_t networkProblemRetryDelay = 0; // seconds; 0 when no network problems
+
 Thread *pulseSignalThread = nullptr;
 
 void pulseTimerCallback(void);
 Timer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
+
+LEDStatus ledSignalNetworkProblem(
+    RGB_COLOR_ORANGE, LED_PATTERN_BLINK,
+    LED_SPEED_FAST, LED_PRIORITY_NORMAL);
+
 
 //
 // Code
@@ -169,8 +184,8 @@ bool validateRetainedData() {
         return true;
     }
 
-    // Either retainedData has never been initialized, 
-    // or its layout has changed (due to a firmware update). 
+    // Either retainedData has never been initialized,
+    // or its layout has changed (due to a firmware update).
     // For now, just re-initialize everything.
     // (Could get fancier with version migrations if needed later.)
 
@@ -232,7 +247,7 @@ void pulseTimerCallback() {
 
 
 time32_t calcNextPublishTime() {
-    // Return timestamp for next required publish, or 0 for publish immediately.
+    // Return timestamp for next desired publish, or 0 for publish immediately.
     time32_t nextPublishTime = lastPublishTime + PUBLISH_HEARTBEAT_INTERVAL;
 
     if (publishImmediately) {
@@ -261,16 +276,23 @@ time32_t calcNextPublishTime() {
     return nextPublishTime;
 }
 
-bool needToPublish() {
+bool hasPendingPublishMessage() {
+    return publishDataBuf[0] != 0;
+}
+
+bool readyForNextPublish() {
+    if (hasPendingPublishMessage()) {
+        return false;
+    }
     time32_t now = Time.isValid() ? Time.now() : 0;
     time32_t nextPublishTime = calcNextPublishTime();
     return (now >= nextPublishTime);
 }
 
-void publishData() {
-    if (!Particle.connected()) {
-        Particle.connect();  // turns on WiFi, etc.; blocks until ready
-        waitUntil(Particle.connected);
+void buildPublishMessage() {
+    if (hasPendingPublishMessage()) {
+        // Don't overwrite an unpublished message
+        return;
     }
 
     time32_t now, usageInterval;
@@ -328,14 +350,64 @@ void publishData() {
     writer.endObject();
     writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = 0;
 
-    // publish event, blocking until success or failure
-    if (Particle.publish(EVENT_DATA, publishDataBuf.data(), WITH_ACK)) {
-        ATOMIC_BLOCK() {
-            lastPublishTime = now;
-            lastPublishedPulseCount = thisPulseCount;
-            publishCount += 1;
-            publishImmediately = false;
-        }
+    // Once the message is built, it is scheduled for publishing,
+    // so has "consumed" all of these publishing-related variables:
+    ATOMIC_BLOCK() {
+        lastPublishTime = now;
+        lastPublishedPulseCount = thisPulseCount;
+        publishCount += 1;
+        publishImmediately = false;
+    }
+}
+
+bool inNetworkProblemDelay() {
+    return networkProblemRetryDelay > 0;
+}
+
+void onPublishSuccess() {
+    ledSignalNetworkProblem.setActive(false);
+    networkProblemRetryDelay = 0;
+    // Publish at most every 5 seconds (e.g., when recovering after network outage)
+    earliestNextPublishTime = Time.isValid() ? Time.now() + 5 : 0;
+}
+
+void onPublishFailure() {
+    ledSignalNetworkProblem.setActive(true);
+    // Increase delay: 1 minute - 4 hours, with exponential backoff on repeated failures.
+    networkProblemRetryDelay = constrain(networkProblemRetryDelay * 2, 1 * MINUTES, 4 * HOURS);
+    earliestNextPublishTime = Time.isValid() ? Time.now() + networkProblemRetryDelay : 0;
+}
+
+void publishMessage() {
+    // Publish the previously-constructed message in publishDataBuf
+    if (!hasPendingPublishMessage()) {
+        return;
+    }
+
+    if (Time.isValid() && Time.now() < earliestNextPublishTime) {
+        // Not yet. (Delay for burst control or during connectivity problems.)
+        return;
+    }
+
+    if (!WiFi.ready()) {
+        WiFi.connect();
+        const std::chrono::milliseconds timeout = NETWORK_CONNECT_TIMEOUT;
+        waitFor(WiFi.ready, timeout.count());
+    }
+
+    if (WiFi.ready() && !Particle.connected()) {
+        Particle.connect();
+        const std::chrono::milliseconds timeout = CLOUD_CONNECT_TIMEOUT;
+        waitFor(Particle.connected, timeout.count());
+    }
+
+    // publish event, blocking until success or failure/timeout
+    if (Particle.connected() && Particle.publish(EVENT_DATA, publishDataBuf.data(), WITH_ACK)) {
+        publishDataBuf[0] = 0; // release the publishDataBuf for building the next message
+        onPublishSuccess();
+    } else {
+        // Some connection/publishing step failed
+        onPublishFailure();
     }
 }
 
@@ -387,14 +459,15 @@ time32_t calcSleepTime() {
 
     // Sleep until time for next publish
     time32_t now = Time.isValid() ? Time.now() : 0;
-    time32_t nextPublishTime = calcNextPublishTime();
+    time32_t nextPublishTime = hasPendingPublishMessage() ? now : calcNextPublishTime();
+    nextPublishTime = std::max(nextPublishTime, earliestNextPublishTime);
     return (nextPublishTime > now) ? nextPublishTime - now : 0;
 }
 
 void disconnectCleanly() {
     // Disconnect from Particle Cloud and turn off WiFi power cleanly.
     Particle.disconnect();  // relies on CloudDisconnectOptions.graceful (see setup)
-    waitUntil(Particle.disconnected);
+    waitUntil(Particle.disconnected); // uses CloudDisconnectOptions.timeout (see setup)
     WiFi.off();
 }
 
@@ -405,7 +478,6 @@ void sleepDevice(time32_t sleepSecs) {
     System.sleep(
         SystemSleepConfiguration()
             .mode(SystemSleepMode::ULTRA_LOW_POWER)
-            .flag(SystemSleepFlag::WAIT_CLOUD)
             .gpio(PIN_PULSE_SWITCH, FALLING)
             .duration(sleepSecs * 1000)
     );
@@ -462,7 +534,7 @@ void setup() {
     Particle.setDisconnectOptions(
         CloudDisconnectOptions()
             .graceful(true) // required for disconnectCleanly
-            .timeout(5s)
+            .timeout(CLOUD_DISCONNECT_TIMEOUT)
     );
 
     // TODO: maybe check battery level before connecting?
@@ -481,8 +553,11 @@ void setup() {
 
 void loop() {
     // publish
-    if (needToPublish()) {
-        publishData();
+    if (readyForNextPublish()) {
+        buildPublishMessage();
+    }
+    if (hasPendingPublishMessage()) {
+        publishMessage();
     }
 
     // sleep if appropriate
