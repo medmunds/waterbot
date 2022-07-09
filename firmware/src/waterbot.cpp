@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.4";
+const char * const WATERBOT_VERSION = "0.3.5";
 
 // Behavior constants
 
@@ -29,7 +29,7 @@ const uint32_t PUBLISH_MAX_TIMESTAMPS = 20;
 // (without publishing, while cloud connection is unavailable);
 // beyond this, the total reading will still be accurate,
 // but older individual pulse timestamps won't be reported
-const uint32_t PULSE_TIMESTAMP_BUFFER_SIZE = 600;
+const uint32_t PULSE_TIMESTAMP_BUFFER_LENGTH = 700;
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
@@ -84,10 +84,11 @@ const char* const FUNC_SELECT_ANTENNA = "selectAntenna";
 // On overflow, oldest pulse timestamps are lost.
 // (Note that CircularBuffer operations are not thread- or
 // interrupt-safe, so should be wrapped in ATOMIC_BLOCK.)
-typedef CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_SIZE> pulseTimestamps_t;
+typedef CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_LENGTH> pulseTimestamps_t;
 
 // Fixed-size buffer for composing Particle.publish() message data.
-typedef std::array<char, particle::protocol::MAX_EVENT_DATA_LENGTH> publishDataBuf_t;
+typedef std::array<char, 222> publishDataBuf_t;
+static_assert(sizeof(publishDataBuf_t) <= particle::protocol::MAX_EVENT_DATA_LENGTH);
 
 // Version of DeviceOS Timer that supports chrono expressions in constructor.
 class MillisecondTimer : public Timer {
@@ -134,7 +135,7 @@ typedef struct {
 
     // If you add fields, add an initializer to validateRetainedData().
     // If you rearrange or resize any fields, also increment this:
-    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 1;
+    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 2;
 
 } retainedData_t;
 
