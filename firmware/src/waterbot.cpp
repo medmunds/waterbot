@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.6";
+const char * const WATERBOT_VERSION = "0.3.7";
 
 // Behavior constants
 
@@ -369,10 +369,12 @@ void publishData() {
 
     // Capture current device status
     WiFiSignal signal = WiFi.RSSI();  // only valid when WiFi on
-    float rssi = signal.getStrengthValue(); // dB [-90, 0]
-    float snr = signal.getQualityValue(); // dB [0, 90]
-    float cellVoltage = batteryMonitor.getVCell();
-    float stateOfCharge = batteryMonitor.getSoC();
+    float wifiRSSI = signal.getStrengthValue(); // dBm [-90, 0]
+    float wifiSNR = signal.getQualityValue(); // dB [0, 90]
+    float wifiStrength = signal.getStrength(); // % [0, 100]
+    float wifiQuality = signal.getQuality(); // % [0, 100]
+    float batteryVoltage = batteryMonitor.getVCell(); // V
+    float batteryCharge = batteryMonitor.getSoC(); // % [0, 100] nominally, but can report higher
 
     // Format JSON event data
     static std::array<char, particle::protocol::MAX_EVENT_DATA_LENGTH> dataBuf;
@@ -386,10 +388,12 @@ void publishData() {
         writer.name("cur").value(pendingPublishPulseCount);
         writer.name("lst").value(lastPublishPulseCount);
         writer.name("use").value(pendingPublishPulseCount - lastPublishPulseCount);
-        writer.name("sig").value(rssi);
-        writer.name("snr").value(snr);
-        writer.name("btv").value(cellVoltage);
-        writer.name("btp").value(stateOfCharge);
+        writer.name("sig").value(wifiRSSI);
+        writer.name("snr").value(wifiSNR);
+        writer.name("sgp").value(wifiStrength);
+        writer.name("sqp").value(wifiQuality);
+        writer.name("btv").value(batteryVoltage);
+        writer.name("btp").value(batteryCharge);
         writer.name("pts").beginArray();
         {
             // Encode pulseTimes as deltas from previous values.
