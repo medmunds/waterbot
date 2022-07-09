@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.5";
+const char * const WATERBOT_VERSION = "0.3.6";
 
 // Behavior constants
 
@@ -23,20 +23,20 @@ const std::chrono::seconds PUBLISH_HEARTBEAT_INTERVAL = 4h;
 
 // try to publish immediately if this many pulses
 // accumulate before PUBLISH_IN_USE_INTERVAL is reached
-const uint32_t PUBLISH_MAX_TIMESTAMPS = 20;
+const uint32_t PUBLISH_MAX_PULSE_TIMES = 20;
 
-// how many detailed pulse timestamps we can store
+// how many detailed pulse times we can store
 // (without publishing, while cloud connection is unavailable);
 // beyond this, the total reading will still be accurate,
-// but older individual pulse timestamps won't be reported
-const uint32_t PULSE_TIMESTAMP_BUFFER_LENGTH = 700;
+// but older individual pulse times will be lost
+const uint32_t PULSE_TIMES_BUFFER_SIZE = 700;
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
 const std::chrono::seconds RESET_STAY_AWAKE_INTERVAL = 10min;
 
 // don't bother sleeping for less than this
-const std::chrono::seconds MIN_SLEEP_TIME = 10s;
+const std::chrono::seconds MIN_SLEEP_INTERVAL = 10s;
 
 // never publish more often than this (Particle event throttling)
 const std::chrono::seconds PUBLISH_MIN_INTERVAL = 5s;
@@ -84,11 +84,7 @@ const char* const FUNC_SELECT_ANTENNA = "selectAntenna";
 // On overflow, oldest pulse timestamps are lost.
 // (Note that CircularBuffer operations are not thread- or
 // interrupt-safe, so should be wrapped in ATOMIC_BLOCK.)
-typedef CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_LENGTH> pulseTimestamps_t;
-
-// Fixed-size buffer for composing Particle.publish() message data.
-typedef std::array<char, 222> publishDataBuf_t;
-static_assert(sizeof(publishDataBuf_t) <= particle::protocol::MAX_EVENT_DATA_LENGTH);
+typedef CircularBuffer<time32_t, PULSE_TIMES_BUFFER_SIZE> PulseTimesBuffer;
 
 // Version of DeviceOS Timer that supports chrono expressions in constructor.
 class MillisecondTimer : public Timer {
@@ -97,6 +93,8 @@ public:
         : Timer(period.count(), callback_, one_shot) {}
 };
 
+// Value that is not (and is always less than) Time.now()
+const time32_t INVALID_TIME = 0;
 
 //
 // Retained data (backup RAM / SRAM)
@@ -113,29 +111,28 @@ typedef struct {
     uint16_t size;
     uint16_t dataLayoutVersion;
 
-    volatile uint32_t pulseCount;
+    // Current meter reading:
+    volatile uint32_t currentPulseCount;
 
-    // These are updated at the time a publish data message is constructed
-    // (not when it is successfully delivered):
+    // Updated on successful publish:
     time32_t lastPublishTime;
-    uint32_t lastPublishedPulseCount;
+    uint32_t lastPublishPulseCount;
     uint32_t publishCount; // number of publishes since power up
 
-    uint32_t _spare1;
-    uint32_t _spare2;
+    // In-progress publish attempt:
+    time32_t pendingPublishTime; // INVALID_TIME if publish not in progress
+    uint32_t pendingPublishPulseCount;
+    std::array<time32_t, PUBLISH_MAX_PULSE_TIMES + 2> pendingPublishPulseTimes;
+    // (+2 in case a few pulses sneak in as we're waking and deciding whether to publish)
 
-    // This doesn't work:
-    //   pulseTimestamps_t pulseTimestamps;
-    // because the compiler generates constructor code in the program init block
-    // (which clears the retained pulseTimestamps on every reset). Instead just
-    // allocate space for the object, and cast it below:
-    unsigned char pulseTimestampsBuf[sizeof(pulseTimestamps_t)];
-
-    publishDataBuf_t publishDataBuf;
+    // Captured, not-yet-reported times for each pulse:
+    // PulseTimesBuffer pulseTimes; // (doesn't work, because constructor runs on every reset)
+    uint8_t pulseTimesBuf[sizeof(PulseTimesBuffer)]; // workaround
+    PulseTimesBuffer& pulseTimes = reinterpret_cast<PulseTimesBuffer&>(pulseTimesBuf);
 
     // If you add fields, add an initializer to validateRetainedData().
     // If you rearrange or resize any fields, also increment this:
-    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 2;
+    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 3;
 
 } retainedData_t;
 
@@ -143,13 +140,15 @@ retained retainedData_t retainedData;
 static_assert(sizeof(retainedData_t) <= 3068,
     "Photon has only 3068 bytes of backup RAM for retainedData.");
 
-// Allow accessing retainedData members without always referring to the struct:
-volatile uint32_t& pulseCount = retainedData.pulseCount;
-time32_t& lastPublishTime = retainedData.lastPublishTime;
-uint32_t& lastPublishedPulseCount = retainedData.lastPublishedPulseCount;
-uint32_t& publishCount = retainedData.publishCount;
-pulseTimestamps_t& pulseTimestamps = reinterpret_cast<pulseTimestamps_t&>(retainedData.pulseTimestampsBuf);
-publishDataBuf_t& publishDataBuf = retainedData.publishDataBuf;
+// Simplify read access to retainedData members:
+const auto& currentPulseCount = retainedData.currentPulseCount;
+const auto& lastPublishTime = retainedData.lastPublishTime;
+const auto& lastPublishPulseCount = retainedData.lastPublishPulseCount;
+const auto& publishCount = retainedData.publishCount;
+const auto& pendingPublishTime = retainedData.pendingPublishTime;
+const auto& pendingPublishPulseCount = retainedData.pendingPublishPulseCount;
+const auto& pendingPublishPulseTimes = retainedData.pendingPublishPulseTimes;
+const auto& pulseTimes = retainedData.pulseTimes;
 
 // Don't change this (or you will invalidate all retainedData).
 // It's just a fixed, randomly-generated, non-zero number.
@@ -182,14 +181,13 @@ LEDStatus ledSignalTimeInvalid(
     RGB_COLOR_RED, LED_PATTERN_BLINK,
     LED_SPEED_FAST, LED_PRIORITY_IMPORTANT);
 
-
 //
 // Code
 //
 
 bool validateRetainedData() {
     // Verify retainedData is usable, or initialize if not.
-    // Returns true if data was reinitialized.
+    // Returns false if data needed to be reinitialized.
 
     if (retainedData.magic == RETAINED_DATA_MAGIC
         && retainedData.size == sizeof(retainedData)
@@ -204,16 +202,14 @@ bool validateRetainedData() {
     // For now, just re-initialize everything.
     // (Could get fancier with version migrations if needed later.)
 
-    // dataLayoutVersion 1:
-    retainedData.pulseCount = 0;
-    retainedData.lastPublishTime = 0;
-    retainedData.lastPublishedPulseCount = 0;
+    retainedData.currentPulseCount = 0;
+    retainedData.lastPublishTime = INVALID_TIME;
+    retainedData.lastPublishPulseCount = 0;
     retainedData.publishCount = 0;
-    retainedData._spare1 = 0;
-    retainedData._spare2 = 0;
-
-    pulseTimestamps.clear(); // equivalent to CircularBuffer constructor
-    retainedData.publishDataBuf[0] = 0;
+    retainedData.pendingPublishTime = INVALID_TIME;
+    retainedData.pendingPublishPulseCount = 0;
+    retainedData.pendingPublishPulseTimes.fill(INVALID_TIME);
+    retainedData.pulseTimes.clear(); // equivalent to CircularBuffer constructor
 
     // If you add new retained data above, be sure to add
     // an equivalent initializer here.
@@ -240,10 +236,10 @@ void pulseTimerCallback() {
     // (If switch opened during the timer period, ignore it as noise.)
     ATOMIC_BLOCK() {
         if (digitalRead(PIN_PULSE_SWITCH) == LOW) {
-            pulseCount += 1;
+            retainedData.currentPulseCount += 1;
             pulsesToSignal += 1;
             if (Time.isValid()) {
-                pulseTimestamps.push(Time.now());
+                retainedData.pulseTimes.push(Time.now());
             }
         }
     }
@@ -259,7 +255,7 @@ inline time32_t asTime32(std::chrono::seconds duration) {
 // Return Time.now() without blocking or cloud connection.
 // Enables invalid time LED signal if RTC has gone invalid.
 // (Do not call from ISRs.)
-inline time32_t nowTime(time32_t resultIfInvalid = 0) {
+time32_t nowTime(time32_t resultIfInvalid = INVALID_TIME) {
     bool isValid = Time.isValid();
     if (isValid != !ledSignalTimeInvalid.isActive()) {
         ledSignalTimeInvalid.setActive(!isValid);
@@ -268,26 +264,28 @@ inline time32_t nowTime(time32_t resultIfInvalid = 0) {
 }
 
 
+inline bool hasPendingPublish() {
+    return pendingPublishTime != INVALID_TIME;
+}
+
 time32_t calcNextPublishTime() {
     // Return timestamp for next desired publish, or 0 for publish immediately.
-    time32_t nextPublishTime = lastPublishTime + asTime32(PUBLISH_HEARTBEAT_INTERVAL);
+    time32_t nextPublishTime;
 
-    if (publishImmediately) {
-        // Publish requested by cloud function
+    if (publishImmediately || hasPendingPublish()) {
         nextPublishTime = 0;
     } else {
-        // Publish when pulses to report
+        // Publish when pulses to report, or at heartbeat if sooner
+        nextPublishTime = lastPublishTime + asTime32(PUBLISH_HEARTBEAT_INTERVAL);
         ATOMIC_BLOCK() {
-            if (!pulseTimestamps.isEmpty()) {
-                if (pulseTimestamps.isFull()
-                    || pulseTimestamps.size() >= PUBLISH_MAX_TIMESTAMPS
-                ) {
-                    // Too many pulseTimestamps; publish immediately
+            if (!pulseTimes.isEmpty()) {
+                if (pulseTimes.isFull() || pulseTimes.size() >= PUBLISH_MAX_PULSE_TIMES) {
+                    // Too many pulseTimes; publish immediately
                     nextPublishTime = 0;
                 } else {
                     // Publish accumulated data after in-use interval
                     nextPublishTime = std::min(
-                        pulseTimestamps.first() + asTime32(PUBLISH_IN_USE_INTERVAL),
+                        pulseTimes.first() + asTime32(PUBLISH_IN_USE_INTERVAL),
                         nextPublishTime
                     );
                 }
@@ -298,89 +296,6 @@ time32_t calcNextPublishTime() {
     return nextPublishTime;
 }
 
-bool hasPendingPublishMessage() {
-    return publishDataBuf[0] != 0;
-}
-
-bool readyForNextPublish() {
-    if (hasPendingPublishMessage()) {
-        return false;
-    }
-    time32_t now = nowTime();
-    time32_t nextPublishTime = calcNextPublishTime();
-    return (now >= nextPublishTime);
-}
-
-void buildPublishMessage() {
-    if (hasPendingPublishMessage()) {
-        // Don't overwrite an unpublished message
-        return;
-    }
-
-    time32_t now = nowTime();
-    time32_t usageInterval;
-    uint32_t thisPulseCount;
-    int32_t usage;
-    ATOMIC_BLOCK() {
-        // atomically capture a consistent set of data for the publish
-        thisPulseCount = pulseCount;
-        usageInterval = now - lastPublishTime;
-        usage = thisPulseCount - lastPublishedPulseCount;
-    }
-    WiFiSignal signal = WiFi.RSSI();  // report whenever we're publishing
-    float rssi = signal.getStrengthValue(); // dB [-90, 0]
-    float snr = signal.getQualityValue(); // dB [0, 90]
-    float cellVoltage = batteryMonitor.getVCell(); // valid 500ms after wakeup (Particle.connect provides sufficient delay)
-    float stateOfCharge = batteryMonitor.getSoC();
-
-    // format all our vars into JSON
-    JSONBufferWriter writer(publishDataBuf.data(), sizeof(publishDataBuf) - 1);
-    writer.beginObject();
-    {
-        writer.name("t").value(now);
-        writer.name("seq").value(publishCount);
-        writer.name("per").value(usageInterval);
-        writer.name("cur").value(thisPulseCount);
-        writer.name("lst").value(lastPublishedPulseCount);
-        writer.name("use").value(usage);
-        writer.name("sig").value(rssi);
-        writer.name("snr").value(snr);
-        writer.name("btv").value(cellVoltage);
-        writer.name("btp").value(stateOfCharge);
-        writer.name("v").value(WATERBOT_VERSION);
-        writer.name("pts").beginArray();
-        ATOMIC_BLOCK() {
-            // Consume as many pulseTimestamps as will fit.
-            // Publish pulseTimestamps as deltas from previous values
-            // (to save on json characters). First timestamp is encoded
-            // as delta from start of this interval.
-            time32_t previous = now - usageInterval;
-            while (!pulseTimestamps.isEmpty()) {
-                time32_t ts = pulseTimestamps.shift();
-                writer.value(ts - previous);
-                previous = ts;
-
-                if (writer.dataSize() > writer.bufferSize() - 15) {
-                    // Probably not enough space for another value
-                    // (and a comma and trailing ']' and '}' chars)
-                    break;
-                }
-            }
-        }
-        writer.endArray();
-    }
-    writer.endObject();
-    writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = 0;
-
-    // Once the message is built, it is scheduled for publishing,
-    // so has "consumed" all of these publishing-related variables:
-    ATOMIC_BLOCK() {
-        lastPublishTime = now;
-        lastPublishedPulseCount = thisPulseCount;
-        publishCount += 1;
-        publishImmediately = false;
-    }
-}
 
 bool inNetworkProblemDelay() {
     return networkProblemRetryDelay > 0;
@@ -403,38 +318,112 @@ void onPublishFailure() {
     earliestNextPublishTime = nowTime() + networkProblemRetryDelay;
 }
 
-void publishMessage() {
-    // Publish the previously-constructed message in publishDataBuf
-    if (!hasPendingPublishMessage()) {
-        return;
+
+void publishData() {
+
+    // Collect metering data (unless previous data still pending)
+    if (!hasPendingPublish()) {
+        // This is the "reliable message delivery" portion of the data.
+        // Once captured, we will keep trying to publish it until successful.
+        // (Other data--like device battery level--is updated on each publish
+        // attempt, because we don't need reliable delivery for it.)
+        ATOMIC_BLOCK() {
+            retainedData.pendingPublishTime = nowTime();
+            retainedData.pendingPublishPulseCount = currentPulseCount;
+            // Move pulseTimes for this publish into pendingPublishPulseTimes
+            for (auto& pendingPulseTime: retainedData.pendingPublishPulseTimes) {
+                if (pulseTimes.isEmpty() || pulseTimes.first() > pendingPublishTime) {
+                    pendingPulseTime = INVALID_TIME;
+                    break;
+                }
+                pendingPulseTime = retainedData.pulseTimes.shift();
+            }
+            publishImmediately = false;
+        }
     }
 
     if (nowTime() < earliestNextPublishTime) {
-        // Not yet. (Delay for burst control or during connectivity problems.)
+        // Try again later. (Delay for burst control or connectivity issues.)
         return;
     }
 
+    // Connect to network
     if (!WiFi.ready()) {
         WiFi.connect();
-        const std::chrono::milliseconds timeout = NETWORK_CONNECT_TIMEOUT;
-        waitFor(WiFi.ready, timeout.count());
+        const std::chrono::milliseconds timeout(NETWORK_CONNECT_TIMEOUT);
+        if (!waitFor(WiFi.ready, timeout.count())) {
+            onPublishFailure();
+            return;
+        }
     }
 
-    if (WiFi.ready() && !Particle.connected()) {
+    // Connect to cloud
+    if (!Particle.connected()) {
         Particle.connect();
-        const std::chrono::milliseconds timeout = CLOUD_CONNECT_TIMEOUT;
-        waitFor(Particle.connected, timeout.count());
+        const std::chrono::milliseconds timeout(CLOUD_CONNECT_TIMEOUT);
+        if (!waitFor(Particle.connected, timeout.count())) {
+            onPublishFailure();
+            return;
+        }
     }
 
-    // publish event, blocking until success or failure/timeout
-    if (Particle.connected() && Particle.publish(EVENT_DATA, publishDataBuf.data(), WITH_ACK)) {
-        publishDataBuf[0] = 0; // release the publishDataBuf for building the next message
+    // Capture current device status
+    WiFiSignal signal = WiFi.RSSI();  // only valid when WiFi on
+    float rssi = signal.getStrengthValue(); // dB [-90, 0]
+    float snr = signal.getQualityValue(); // dB [0, 90]
+    float cellVoltage = batteryMonitor.getVCell();
+    float stateOfCharge = batteryMonitor.getSoC();
+
+    // Format JSON event data
+    static std::array<char, particle::protocol::MAX_EVENT_DATA_LENGTH> dataBuf;
+    JSONBufferWriter writer(dataBuf.data(), dataBuf.size() - 1);
+    writer.beginObject();
+    {
+        writer.name("t").value(pendingPublishTime); // timestamp of meter data capture
+        writer.name("at").value(nowTime()); // actual now
+        writer.name("seq").value(publishCount);
+        writer.name("per").value(pendingPublishTime - lastPublishTime);
+        writer.name("cur").value(pendingPublishPulseCount);
+        writer.name("lst").value(lastPublishPulseCount);
+        writer.name("use").value(pendingPublishPulseCount - lastPublishPulseCount);
+        writer.name("sig").value(rssi);
+        writer.name("snr").value(snr);
+        writer.name("btv").value(cellVoltage);
+        writer.name("btp").value(stateOfCharge);
+        writer.name("pts").beginArray();
+        {
+            // Encode pulseTimes as deltas from previous values.
+            // First pulseTime is encoded as delta from last publish.
+            time32_t previousTime = lastPublishTime;
+            for (const auto& pulseTime: pendingPublishPulseTimes) {
+                if (pulseTime == INVALID_TIME) {
+                    break;
+                }
+                writer.value(pulseTime - previousTime);
+                previousTime = pulseTime;
+            }
+        }
+        writer.endArray();
+        writer.name("v").value(WATERBOT_VERSION);
+    }
+    writer.endObject();
+    writer.buffer()[std::min(writer.bufferSize(), writer.dataSize())] = '\0';
+    // assert(writer.dataSize() < writer.bufferSize()); // ???
+
+    // Publish the event
+    if (Particle.publish(EVENT_DATA, dataBuf.data(), WITH_ACK)) {
+        ATOMIC_BLOCK() {
+            retainedData.lastPublishTime = pendingPublishTime;
+            retainedData.lastPublishPulseCount = pendingPublishPulseCount;
+            retainedData.publishCount += 1;
+            retainedData.pendingPublishTime = INVALID_TIME; // no longer pending
+        }
         onPublishSuccess();
     } else {
-        // Some connection/publishing step failed
         onPublishFailure();
     }
 }
+
 
 // Cloud function: arg int newPulseCount
 int setReading(String args) {
@@ -443,12 +432,9 @@ int setReading(String args) {
         return -1;
     }
 
-    time32_t now = nowTime();
     ATOMIC_BLOCK() {
-        pulseCount = newPulseCount;
-        lastPublishedPulseCount = newPulseCount;
-        pulseTimestamps.clear();
-        lastPublishTime = now;
+        retainedData.currentPulseCount = newPulseCount;
+        retainedData.pulseTimes.clear();
         publishImmediately = true;
     }
     return 0;
@@ -503,10 +489,9 @@ time32_t calcSleepTime() {
     }
 
     // Sleep until time for next publish
-    time32_t nextPublishTime = hasPendingPublishMessage() ? now : calcNextPublishTime();
-    nextPublishTime = std::max(nextPublishTime, earliestNextPublishTime);
-    time32_t sleepTime = nextPublishTime - now;
-    return sleepTime < asTime32(MIN_SLEEP_TIME) ? 0 : sleepTime;
+    time32_t nextPublishTime = calcNextPublishTime();
+    time32_t sleepTime = std::max(nextPublishTime, earliestNextPublishTime) - now;
+    return sleepTime < asTime32(MIN_SLEEP_INTERVAL) ? 0 : sleepTime;
 }
 
 void disconnectCleanly() {
@@ -520,11 +505,12 @@ void disconnectCleanly() {
 void sleepDevice(time32_t sleepSecs) {
     // Enter ultra low power mode (after finishing any cloud communication),
     // waking on PIN_PULSE_SWITCH or after sleepSecs secs.
+    const std::chrono::seconds sleepDuration(sleepSecs);
     System.sleep(
         SystemSleepConfiguration()
             .mode(SystemSleepMode::ULTRA_LOW_POWER)
             .gpio(PIN_PULSE_SWITCH, FALLING)
-            .duration(sleepSecs * 1000)
+            .duration(sleepDuration)
     );
 }
 
@@ -558,11 +544,6 @@ void setup() {
     pinMode(PIN_PULSE_SWITCH, INPUT_PULLUP);
     attachInterrupt(PIN_PULSE_SWITCH, pulseISR, FALLING);
 
-    batteryMonitor.begin();
-    if (System.resetReason() == RESET_REASON_POWER_DOWN) {
-        batteryMonitor.quickStart();
-    }
-
     if (!pulseSignalThread) {
         pulseSignalThread = new Thread(
             "pulseSignal",
@@ -570,6 +551,11 @@ void setup() {
             OS_THREAD_PRIORITY_DEFAULT,
             256U // only need a tiny stack
         );
+    }
+
+    batteryMonitor.begin();
+    if (System.resetReason() == RESET_REASON_POWER_DOWN) {
+        batteryMonitor.quickStart();
     }
 
     Particle.function(FUNC_SET_READING, setReading);
@@ -599,10 +585,10 @@ void setup() {
         ledSignalTimeInvalid.setActive(false);
     }
 
-    if (lastPublishTime == 0) {
+    if (lastPublishTime == INVALID_TIME) {
         // If we don't know lastPublishTime (first run, retainedData layout change),
         // initialize it to power-up time so next reported usageInterval is reasonable.
-        lastPublishTime = nowTime() - (millis() / 1000);
+        retainedData.lastPublishTime = nowTime() - (millis() / 1000);
     }
 
     if (System.resetReason() == RESET_REASON_PIN_RESET) {
@@ -613,11 +599,8 @@ void setup() {
 
 void loop() {
     // publish
-    if (readyForNextPublish()) {
-        buildPublishMessage();
-    }
-    if (hasPendingPublishMessage()) {
-        publishMessage();
+    if (nowTime() >= calcNextPublishTime()) {
+        publishData();
     }
 
     // sleep if appropriate
@@ -629,4 +612,7 @@ void loop() {
             sleepDevice(sleepTime);
         }
     }
+
+    // wait a little
+    delay(50ms);
 }
