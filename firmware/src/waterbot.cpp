@@ -12,23 +12,14 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.3";
-
-PowerShield batteryMonitor;
-
-
-// Some helpful Time.now unit conversions:
-#define SECONDS 1
-#define MINUTES (60 * SECONDS)
-#define HOURS (60 * MINUTES)
-
+const char * const WATERBOT_VERSION = "0.3.4";
 
 // Behavior constants
 
 // publish no more often than the in-use interval while water is running;
 // but when water isn't running, publish at least once every heartbeat interval
-const time32_t PUBLISH_IN_USE_INTERVAL = 1 * MINUTES; // min between publishes
-const time32_t PUBLISH_HEARTBEAT_INTERVAL = 4 * HOURS; // max between publishes
+const std::chrono::seconds PUBLISH_IN_USE_INTERVAL = 1min;
+const std::chrono::seconds PUBLISH_HEARTBEAT_INTERVAL = 4h;
 
 // try to publish immediately if this many pulses
 // accumulate before PUBLISH_IN_USE_INTERVAL is reached
@@ -42,22 +33,30 @@ const uint32_t PULSE_TIMESTAMP_BUFFER_SIZE = 600;
 
 // pressing the reset button will wake up, connect to the cloud,
 // and stay away this long (for setup/diagnostics/updates):
-const uint32_t RESET_STAY_AWAKE_INTERVAL = 5 * MINUTES;
+const std::chrono::seconds RESET_STAY_AWAKE_INTERVAL = 10min;
 
 // don't bother sleeping for less than this
-const time32_t MIN_SLEEP_TIME = 10 * SECONDS;
+const std::chrono::seconds MIN_SLEEP_TIME = 10s;
+
+// never publish more often than this (Particle event throttling)
+const std::chrono::seconds PUBLISH_MIN_INTERVAL = 5s;
 
 // timeouts for connecting to WiFi and cloud
 const std::chrono::seconds NETWORK_CONNECT_TIMEOUT = 15s;
 const std::chrono::seconds CLOUD_CONNECT_TIMEOUT = 30s;
 const std::chrono::seconds CLOUD_DISCONNECT_TIMEOUT = 10s;
 
-const uint32_t SIGNAL_MSEC_ON = 350;
-const uint32_t SIGNAL_MSEC_OFF = 150;
+// retry delays when experiencing network issues
+const std::chrono::seconds NETWORK_PROBLEM_INITIAL_DELAY = 1min;
+const std::chrono::seconds NETWORK_PROBLEM_MAX_DELAY = 4h;
+
+// timing for pulse signalling (on the user LED)
+const std::chrono::milliseconds SIGNAL_MSEC_ON = 350ms;
+const std::chrono::milliseconds SIGNAL_MSEC_OFF = 150ms;
 
 // reject pulses shorter than this as noise
 // (must be less than meter pulse width at maximum flow)
-const uint32_t DEBOUNCE_MSEC = 300;
+const std::chrono::milliseconds DEBOUNCE_MSEC = 300ms;
 
 
 // Hardware constants
@@ -89,6 +88,14 @@ typedef CircularBuffer<time32_t, PULSE_TIMESTAMP_BUFFER_SIZE> pulseTimestamps_t;
 
 // Fixed-size buffer for composing Particle.publish() message data.
 typedef std::array<char, particle::protocol::MAX_EVENT_DATA_LENGTH> publishDataBuf_t;
+
+// Version of DeviceOS Timer that supports chrono expressions in constructor.
+class MillisecondTimer : public Timer {
+public:
+    MillisecondTimer(std::chrono::milliseconds period, timer_callback_fn callback_, bool one_shot=false)
+        : Timer(period.count(), callback_, one_shot) {}
+};
+
 
 //
 // Retained data (backup RAM / SRAM)
@@ -153,20 +160,26 @@ const uint32_t RETAINED_DATA_MAGIC = 0x8abfc1b1;
 //
 
 volatile uint32_t pulsesToSignal = 0;
-volatile uint32_t stayAwakeUntilMillis = 0;
 volatile bool publishImmediately = false;
 
-time32_t earliestNextPublishTime = 0; // Time.now; used for network delays and throttling
+time32_t stayAwakeUntilTime = 0; // prevents sleeping when > Time.now()
+time32_t earliestNextPublishTime = 0; // delays publish attempts when > Time.now()
 time32_t networkProblemRetryDelay = 0; // seconds; 0 when no network problems
+
+PowerShield batteryMonitor;
 
 Thread *pulseSignalThread = nullptr;
 
 void pulseTimerCallback(void);
-Timer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
+MillisecondTimer pulseDebounceTimer(DEBOUNCE_MSEC, pulseTimerCallback, true);
 
 LEDStatus ledSignalNetworkProblem(
     RGB_COLOR_ORANGE, LED_PATTERN_BLINK,
     LED_SPEED_FAST, LED_PRIORITY_NORMAL);
+
+LEDStatus ledSignalTimeInvalid(
+    RGB_COLOR_RED, LED_PATTERN_BLINK,
+    LED_SPEED_FAST, LED_PRIORITY_IMPORTANT);
 
 
 //
@@ -211,17 +224,6 @@ bool validateRetainedData() {
 }
 
 
-inline void stayAwakeForMsec(uint32_t msec) {
-    // don't allow sleep until at least msec from now
-    uint32_t now = millis();
-    if (now + msec > stayAwakeUntilMillis
-        || msec > ULONG_MAX - now) // rollover
-    {
-        stayAwakeUntilMillis = now + msec;
-    }
-}
-
-
 void pulseISR() {
     // Interrupt handler for PIN_PULSE_SWITCH.
     // Start (restart) the debounce timer.
@@ -247,9 +249,27 @@ void pulseTimerCallback() {
 }
 
 
+// convert a std::chrono::duration to a time32_t
+// timestamp with the same units as Time.now().
+inline time32_t asTime32(std::chrono::seconds duration) {
+    return duration.count();
+}
+
+// Return Time.now() without blocking or cloud connection.
+// Enables invalid time LED signal if RTC has gone invalid.
+// (Do not call from ISRs.)
+inline time32_t nowTime(time32_t resultIfInvalid = 0) {
+    bool isValid = Time.isValid();
+    if (isValid != !ledSignalTimeInvalid.isActive()) {
+        ledSignalTimeInvalid.setActive(!isValid);
+    }
+    return isValid ? Time.now() : resultIfInvalid;
+}
+
+
 time32_t calcNextPublishTime() {
     // Return timestamp for next desired publish, or 0 for publish immediately.
-    time32_t nextPublishTime = lastPublishTime + PUBLISH_HEARTBEAT_INTERVAL;
+    time32_t nextPublishTime = lastPublishTime + asTime32(PUBLISH_HEARTBEAT_INTERVAL);
 
     if (publishImmediately) {
         // Publish requested by cloud function
@@ -266,7 +286,7 @@ time32_t calcNextPublishTime() {
                 } else {
                     // Publish accumulated data after in-use interval
                     nextPublishTime = std::min(
-                        pulseTimestamps.first() + PUBLISH_IN_USE_INTERVAL,
+                        pulseTimestamps.first() + asTime32(PUBLISH_IN_USE_INTERVAL),
                         nextPublishTime
                     );
                 }
@@ -285,7 +305,7 @@ bool readyForNextPublish() {
     if (hasPendingPublishMessage()) {
         return false;
     }
-    time32_t now = Time.isValid() ? Time.now() : 0;
+    time32_t now = nowTime();
     time32_t nextPublishTime = calcNextPublishTime();
     return (now >= nextPublishTime);
 }
@@ -296,12 +316,12 @@ void buildPublishMessage() {
         return;
     }
 
-    time32_t now, usageInterval;
+    time32_t now = nowTime();
+    time32_t usageInterval;
     uint32_t thisPulseCount;
     int32_t usage;
     ATOMIC_BLOCK() {
         // atomically capture a consistent set of data for the publish
-        now = Time.now();
         thisPulseCount = pulseCount;
         usageInterval = now - lastPublishTime;
         usage = thisPulseCount - lastPublishedPulseCount;
@@ -369,14 +389,17 @@ void onPublishSuccess() {
     ledSignalNetworkProblem.setActive(false);
     networkProblemRetryDelay = 0;
     // Publish at most every 5 seconds (e.g., when recovering after network outage)
-    earliestNextPublishTime = Time.isValid() ? Time.now() + 5 : 0;
+    earliestNextPublishTime = nowTime() + asTime32(PUBLISH_MIN_INTERVAL);
 }
 
 void onPublishFailure() {
     ledSignalNetworkProblem.setActive(true);
     // Increase delay: 1 minute - 4 hours, with exponential backoff on repeated failures.
-    networkProblemRetryDelay = constrain(networkProblemRetryDelay * 2, 1 * MINUTES, 4 * HOURS);
-    earliestNextPublishTime = Time.isValid() ? Time.now() + networkProblemRetryDelay : 0;
+    networkProblemRetryDelay = constrain(
+        networkProblemRetryDelay * 2,
+        asTime32(NETWORK_PROBLEM_INITIAL_DELAY),
+        asTime32(NETWORK_PROBLEM_MAX_DELAY));
+    earliestNextPublishTime = nowTime() + networkProblemRetryDelay;
 }
 
 void publishMessage() {
@@ -385,7 +408,7 @@ void publishMessage() {
         return;
     }
 
-    if (Time.isValid() && Time.now() < earliestNextPublishTime) {
+    if (nowTime() < earliestNextPublishTime) {
         // Not yet. (Delay for burst control or during connectivity problems.)
         return;
     }
@@ -419,7 +442,7 @@ int setReading(String args) {
         return -1;
     }
 
-    time32_t now = Time.now();
+    time32_t now = nowTime();
     ATOMIC_BLOCK() {
         pulseCount = newPulseCount;
         lastPublishedPulseCount = newPulseCount;
@@ -432,7 +455,7 @@ int setReading(String args) {
 
 // Cloud function
 int sleepNow(String args) {
-    stayAwakeUntilMillis = millis();
+    stayAwakeUntilTime = 0;
     return 0;
 }
 
@@ -473,15 +496,16 @@ time32_t calcSleepTime() {
         return 0; // stay awake to complete signaling
     }
 
-    if (millis() <= stayAwakeUntilMillis) {
-        return 0; // stay awake for minimum period (e.g., after reset)
+    time32_t now = nowTime();
+    if (now < stayAwakeUntilTime) {
+        return 0; // stay awake after reset
     }
 
     // Sleep until time for next publish
-    time32_t now = Time.isValid() ? Time.now() : 0;
     time32_t nextPublishTime = hasPendingPublishMessage() ? now : calcNextPublishTime();
     nextPublishTime = std::max(nextPublishTime, earliestNextPublishTime);
-    return (nextPublishTime > now) ? nextPublishTime - now : 0;
+    time32_t sleepTime = nextPublishTime - now;
+    return sleepTime < asTime32(MIN_SLEEP_TIME) ? 0 : sleepTime;
 }
 
 void disconnectCleanly() {
@@ -562,16 +586,20 @@ void setup() {
             .timeout(CLOUD_DISCONNECT_TIMEOUT)
     );
 
-    // TODO: maybe check battery level before connecting?
     Particle.connect();
     waitUntil(Particle.connected);
-    if (System.resetReason() == RESET_REASON_PIN_RESET) {
-        stayAwakeForMsec(RESET_STAY_AWAKE_INTERVAL * 1000);
+    ledSignalNetworkProblem.setActive(false);
+
+    // Most of our logic depends on valid RTC.
+    // If we lost track of time while powered down, restore it now.
+    if (!Time.isValid()) {
+        Particle.syncTime();
+        waitUntil(Particle.syncTimeDone);
+        ledSignalTimeInvalid.setActive(false);
     }
 
-    // if we lost track of time while powered down, restore it now
-    if (!Time.isValid()) {
-        waitUntil(Particle.syncTimeDone); // TODO: timeout?
+    if (System.resetReason() == RESET_REASON_PIN_RESET) {
+        stayAwakeUntilTime = nowTime() + asTime32(RESET_STAY_AWAKE_INTERVAL);
     }
 }
 
@@ -587,10 +615,10 @@ void loop() {
 
     // sleep if appropriate
     time32_t sleepTime = calcSleepTime();
-    if (sleepTime > MIN_SLEEP_TIME) {
+    if (sleepTime > 0) {
         disconnectCleanly();
         sleepTime = calcSleepTime();  // might have changed while waiting for disconnect
-        if (sleepTime > MIN_SLEEP_TIME) {
+        if (sleepTime > 0) {
             sleepDevice(sleepTime);
         }
     }
