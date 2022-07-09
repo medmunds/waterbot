@@ -598,6 +598,12 @@ void setup() {
         ledSignalTimeInvalid.setActive(false);
     }
 
+    if (lastPublishTime == 0) {
+        // If we don't know lastPublishTime (first run, retainedData layout change),
+        // initialize it to power-up time so next reported usageInterval is reasonable.
+        lastPublishTime = nowTime() - (millis() / 1000);
+    }
+
     if (System.resetReason() == RESET_REASON_PIN_RESET) {
         stayAwakeUntilTime = nowTime() + asTime32(RESET_STAY_AWAKE_INTERVAL);
     }
