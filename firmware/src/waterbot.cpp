@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.8";
+const char * const WATERBOT_VERSION = "0.3.9";
 
 // Behavior constants
 
@@ -48,7 +48,7 @@ const std::chrono::seconds CLOUD_DISCONNECT_TIMEOUT = 10s;
 
 // retry delays when experiencing network issues
 const std::chrono::seconds NETWORK_PROBLEM_INITIAL_DELAY = 1min;
-const std::chrono::seconds NETWORK_PROBLEM_MAX_DELAY = 4h;
+const std::chrono::seconds NETWORK_PROBLEM_MAX_DELAY = 1h;
 
 // timing for pulse signalling (on the user LED)
 const std::chrono::milliseconds SIGNAL_MSEC_ON = 350ms;
@@ -122,6 +122,7 @@ typedef struct {
     // In-progress publish attempt:
     time32_t pendingPublishTime; // INVALID_TIME if publish not in progress
     uint32_t pendingPublishPulseCount;
+    uint32_t pendingPublishFailureCount;
     std::array<time32_t, PUBLISH_MAX_PULSE_TIMES + 2> pendingPublishPulseTimes;
     // (+2 in case a few pulses sneak in as we're waking and deciding whether to publish)
 
@@ -132,7 +133,7 @@ typedef struct {
 
     // If you add fields, add an initializer to validateRetainedData().
     // If you rearrange or resize any fields, also increment this:
-    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 3;
+    const uint16_t CURRENT_DATA_LAYOUT_VERSION = 4;
 
 } retainedData_t;
 
@@ -147,6 +148,7 @@ const auto& lastPublishPulseCount = retainedData.lastPublishPulseCount;
 const auto& publishCount = retainedData.publishCount;
 const auto& pendingPublishTime = retainedData.pendingPublishTime;
 const auto& pendingPublishPulseCount = retainedData.pendingPublishPulseCount;
+const auto& pendingPublishFailureCount = retainedData.pendingPublishFailureCount;
 const auto& pendingPublishPulseTimes = retainedData.pendingPublishPulseTimes;
 const auto& pulseTimes = retainedData.pulseTimes;
 
@@ -208,6 +210,7 @@ bool validateRetainedData() {
     retainedData.publishCount = 0;
     retainedData.pendingPublishTime = INVALID_TIME;
     retainedData.pendingPublishPulseCount = 0;
+    retainedData.pendingPublishFailureCount = 0;
     retainedData.pendingPublishPulseTimes.fill(INVALID_TIME);
     retainedData.pulseTimes.clear(); // equivalent to CircularBuffer constructor
 
@@ -303,6 +306,7 @@ bool inNetworkProblemDelay() {
 
 void onPublishSuccess() {
     ledSignalNetworkProblem.setActive(false);
+    retainedData.pendingPublishFailureCount = 0;
     networkProblemRetryDelay = 0;
     // Publish at most every 5 seconds (e.g., when recovering after network outage)
     earliestNextPublishTime = nowTime() + asTime32(PUBLISH_MIN_INTERVAL);
@@ -310,6 +314,7 @@ void onPublishSuccess() {
 
 void onPublishFailure() {
     ledSignalNetworkProblem.setActive(true);
+    retainedData.pendingPublishFailureCount += 1;
     // Increase delay: 1 minute - 4 hours, with exponential backoff on repeated failures.
     networkProblemRetryDelay = constrain(
         networkProblemRetryDelay * 2,
@@ -330,6 +335,7 @@ void publishData() {
         ATOMIC_BLOCK() {
             retainedData.pendingPublishTime = nowTime();
             retainedData.pendingPublishPulseCount = currentPulseCount;
+            retainedData.pendingPublishFailureCount = 0;
             // Move pulseTimes for this publish into pendingPublishPulseTimes
             for (auto& pendingPulseTime: retainedData.pendingPublishPulseTimes) {
                 if (pulseTimes.isEmpty() || pulseTimes.first() > pendingPublishTime) {
@@ -394,6 +400,7 @@ void publishData() {
         writer.name("sqp").value(wifiQuality);
         writer.name("btv").value(batteryVoltage);
         writer.name("btp").value(batteryCharge);
+        writer.name("try").value(pendingPublishFailureCount);
         writer.name("pts").beginArray();
         {
             // Encode pulseTimes as deltas from previous values.
