@@ -12,7 +12,7 @@ STARTUP(WiFi.selectAntenna(ANT_AUTO));
 SYSTEM_MODE(SEMI_AUTOMATIC);  // wait to connect until we want to
 SYSTEM_THREAD(ENABLED);
 
-const char * const WATERBOT_VERSION = "0.3.7";
+const char * const WATERBOT_VERSION = "0.3.8";
 
 // Behavior constants
 
@@ -423,6 +423,7 @@ void publishData() {
             retainedData.pendingPublishTime = INVALID_TIME; // no longer pending
         }
         onPublishSuccess();
+        Particle.publishVitals(particle::NOW); // blocks
     } else {
         onPublishFailure();
     }
