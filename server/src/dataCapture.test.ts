@@ -1,82 +1,292 @@
-import {mocked} from 'ts-jest/utils';
 import {bigquery} from './bigquery';
-import {datasetId, tableId} from './config';
-import {dataCapture} from './dataCapture';
+import {datasetId, deviceTableId, usageTableId} from './config';
+import {dataCapture, extractDeviceData, extractUsageData} from './dataCapture';
 
 
-// Add asymmetric matcher for floating point
-// https://stackoverflow.com/a/53464807/647002
-const closeTo = (expected: number, precision = 2) => ({
-  asymmetricMatch: (actual: number) => Math.abs(expected - actual) < Math.pow(10, -precision) / 2
-});
+const mockDeviceInfo: DeviceSiteInfoRow = {
+  device_id: "DEVICE",
+  site_id: "SITE",
+  liters_per_meter_pulse: 1.5,
+};
 
+const doNothing = () => {};
 
 // Mock BigQuery (as used by dataCapture function)
 jest.mock('./bigquery');
 const mockedInsert = jest.fn().mockResolvedValue([]);
 const mockedTable = jest.fn().mockReturnValue({insert: mockedInsert});
 const mockedDataset = jest.fn().mockReturnValue({table: mockedTable});
-const mockedBigQuery = mocked(bigquery);
+const mockedQuery = jest.fn().mockResolvedValue([[mockDeviceInfo]]);
+const mockedBigQuery = jest.mocked(bigquery);
 mockedBigQuery.dataset = mockedDataset;
+mockedBigQuery.query = mockedQuery;
 
 
-test(`loads particle event data`, async () => {
-  const eventData = {
-    t: 1619277465,
-    seq: 21802,
-    per: 303,
-    cur: 228231,
-    lst: 228220,
-    use: 11,
-    sig: -59,
-    btv: 4.07,
-    btp: 99.24,
-    v: "0.1.1",
-  };
-  const encodedEvent = Buffer.from(JSON.stringify(eventData)).toString('base64');
-  const message = {
-    attributes: {device_id: "TEST_DEVICE_ID", event: "waterbot/data", published_at: "2021-04-24T15:17:46.597Z"},
-    data: Buffer.from(encodedEvent),
-  }
+describe(`extractUsageData`, () => {
+  test(`typical event`, () => {
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 16,
+      "per": 75,
+      "cur": 2010,
+      "lst": 2007,
+      "use": 3,
+      "pts": [15, 0, 1],
+    });
+    expect(extracted).toEqual([
+      { insertId: "SITE:10100:16:0", site_id: "SITE",
+        time_start: 10040, time_end: 10040, usage_liters: 1.5, meter_reading: 2008 },
+      { insertId: "SITE:10100:16:1", site_id: "SITE",
+        time_start: 10040, time_end: 10040, usage_liters: 1.5, meter_reading: 2009 },
+      { insertId: "SITE:10100:16:2", site_id: "SITE",
+        time_start: 10041, time_end: 10041, usage_liters: 1.5, meter_reading: 2010 },
+    ]);
+  });
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  await dataCapture(message, {});
-  log.mockRestore();
+  test(`zero usage`, () => {
+    // e.g., heartbeat event
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 17,
+      "per": 3600,
+      "cur": 2010,
+      "lst": 2010,
+      "use": 0,
+      "pts": [],
+    });
+    expect(extracted).toEqual([]);
+  });
 
-  expect(mockedDataset).toHaveBeenCalledWith(datasetId);
-  expect(mockedTable).toHaveBeenCalledWith(tableId);
-  expect(mockedInsert).toHaveBeenCalledWith({
-    insertId: `TEST_DEVICE_ID:1619277465:21802`,
-    device_id: "TEST_DEVICE_ID",
-    timestamp: 1619277465,
-    sequence: 21802,
-    period_sec: 303,
-    current_reading_cuft: closeTo(22823.1, 1),
-    usage_cuft: closeTo(1.1, 1),
-    battery_pct: closeTo(99.24, 2),
-    battery_v: closeTo(4.07, 2),
-    wifi_signal: -59,
-    firmware_version: "0.1.1",
+  test(`partially missing pulse timestamps`, () => {
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 16,
+      "per": 75,
+      "cur": 2010,
+      "lst": 2004,
+      "use": 6,
+      "pts": [15, 0, 1],
+    });
+    expect(extracted).toEqual([
+      { insertId: "SITE:10100:16", site_id: "SITE",
+        time_start: 10025, time_end: 10040, usage_liters: 4.5, meter_reading: 2007 },
+      { insertId: "SITE:10100:16:0", site_id: "SITE",
+        time_start: 10040, time_end: 10040, usage_liters: 1.5, meter_reading: 2008 },
+      { insertId: "SITE:10100:16:1", site_id: "SITE",
+        time_start: 10040, time_end: 10040, usage_liters: 1.5, meter_reading: 2009 },
+      { insertId: "SITE:10100:16:2", site_id: "SITE",
+        time_start: 10041, time_end: 10041, usage_liters: 1.5, meter_reading: 2010 },
+    ]);
+  });
+
+  test(`completely missing pulse timestamps`, () => {
+    // e.g., positive meter correction
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 16,
+      "per": 75,
+      "cur": 2010,
+      "lst": 2004,
+      "use": 6,
+      "pts": [],
+    });
+    expect(extracted).toEqual([
+      { insertId: "SITE:10100:16", site_id: "SITE",
+        time_start: 10025, time_end: 10100, usage_liters: 9.0, meter_reading: 2010 },
+    ]);
+  });
+
+  test(`negative meter correction`, () => {
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 16,
+      "per": 75,
+      "cur": 2010,
+      "lst": 2016,
+      "use": -6,
+      "pts": [],
+    });
+    expect(extracted).toEqual([
+      { insertId: "SITE:10100:16", site_id: "SITE",
+        time_start: 10025, time_end: 10100, usage_liters: -9.0, meter_reading: 2010 },
+    ]);
+  });
+
+  test(`device reinitialization`, () => {
+    const extracted = extractUsageData(mockDeviceInfo, {
+      "t": 10100,
+      "at": 10110,
+      "seq": 16,
+      "per": 75,
+      "cur": 2010,
+      "lst": 0,
+      "use": 2010,
+      "pts": [],
+    });
+    // This should *not* record usage for 2010 pulses
+    expect(extracted).toEqual([]);
   });
 });
 
 
-test(`handles BigQuery insert error`, async () => {
-  mockedInsert.mockRejectedValueOnce(new Error("BigQuery error"));
-  const message = {
-    attributes: {device_id: "TEST_DEVICE_ID", event: "waterbot/data", published_at: "2021-04-24T15:17:46.597Z"},
-    data: null,
-  }
+describe(`extractDeviceData`, () => {
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: 1658003600325,
+    });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-  await dataCapture(message, {});
-  log.mockRestore();
+  test(`typical event`, () => {
+    const extracted = extractDeviceData(mockDeviceInfo, {
+      "t": 1658003367,
+      "at": 1658003377,
+      "seq": 2,
+      "per": 75,
+      "cur": 37148,
+      "lst": 37143,
+      "use": 5,
+      "sig": -60,
+      "snr": 32,
+      "sgp": 80,
+      "sqp": 74,
+      "btv": 3.9597,
+      "btp": 85.9141,
+      "try": 3,
+      "pts": [15, 12, 13, 12, 13],
+      "v": "0.3.9"
+    });
+    expect(extracted).toEqual({
+      insertId: "DEVICE:1658003367:2",
+      site_id: "SITE",
+      device_id: "DEVICE",
+      time_generated: 1658003367,
+      time_sent: 1658003377,
+      time_received: 1658003600,
+      sequence: 2,
+      meter_reading: 37148,
+      battery_pct: expect.closeTo(85.9141, 4),
+      battery_v: expect.closeTo(3.9597, 4),
+      wifi_strength_pct: 80,
+      wifi_quality_pct: 74,
+      wifi_signal_dbm: -60,
+      wifi_snr_db: 32,
+      network_retry_count: 3,
+      firmware_version: "0.3.9",
+    });
+  });
+});
 
-  // Make sure error makes it to the logs
-  expect(consoleError).toHaveBeenCalledWith(
-    "ERROR:",
-    expect.objectContaining({message: "BigQuery error"})
-  );
-  consoleError.mockRestore();
+
+describe(`dataCapture`, () => {
+  beforeEach(() => {
+    // Not sure why this (alone) needs to be restored before each test
+    mockedQuery.mockResolvedValue([[mockDeviceInfo]]);
+  });
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: 1658003600325,
+    });
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test(`normal case`, async () => {
+    const eventData = {
+      "t": 1658004655,
+      "at": 1658004659,
+      "seq": 22,
+      "per": 71,
+      "cur": 37255,
+      "lst": 37250,
+      "use": 5,
+      "sig": -62,
+      "snr": 30,
+      "sgp": 75.9991,
+      "sqp": 67.7409,
+      "btv": 3.9584,
+      "btp": 85.4844,
+      "try": 14,
+      "pts": [11, 12, 13, 12, 13],
+      "v": "0.3.9"
+    };
+    const encodedEvent = Buffer.from(JSON.stringify(eventData)).toString('base64');
+    const message = {
+      attributes: {device_id: "DEVICE", event: "waterbot/data", published_at: "2022-07-16T23:30:46.597Z"},
+      data: Buffer.from(encodedEvent),
+    }
+
+    const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+    await dataCapture(message, {});
+    log.mockRestore();
+
+    expect(mockedDataset).toHaveBeenCalledWith(datasetId);
+
+    expect(mockedTable).nthCalledWith(1, deviceTableId);
+    expect(mockedInsert).nthCalledWith(1, {
+      "insertId": "DEVICE:1658004655:22",
+      "device_id": "DEVICE",
+      "site_id": "SITE",
+      "time_generated": 1658004655,
+      "time_sent": 1658004659,
+      "time_received": 1658003600,
+      "sequence": 22,
+      "meter_reading": 37255,
+      "battery_pct": expect.closeTo(85.4844, 4),
+      "battery_v": expect.closeTo(3.9584, 4),
+      "wifi_strength_pct": expect.closeTo(75.9991, 4),
+      "wifi_quality_pct": expect.closeTo(67.7409, 4),
+      "wifi_signal_dbm": -62,
+      "wifi_snr_db": 30,
+      "network_retry_count": 14,
+      "firmware_version": "0.3.9",
+    });
+
+    expect(mockedTable).nthCalledWith(2, usageTableId);
+    expect(mockedInsert).nthCalledWith(2, [
+      {"insertId": "SITE:1658004655:22:0", "site_id": "SITE",
+        "time_start": 1658004595, "time_end": 1658004595,
+        "usage_liters": 1.5, "meter_reading": 37251},
+      {"insertId": "SITE:1658004655:22:1", "site_id": "SITE",
+        "time_start": 1658004607, "time_end": 1658004607,
+        "usage_liters": 1.5, "meter_reading": 37252},
+      {"insertId": "SITE:1658004655:22:2", "site_id": "SITE",
+        "time_start": 1658004620, "time_end": 1658004620,
+        "usage_liters": 1.5, "meter_reading": 37253},
+      {"insertId": "SITE:1658004655:22:3", "site_id": "SITE",
+        "time_start": 1658004632, "time_end": 1658004632,
+        "usage_liters": 1.5, "meter_reading": 37254},
+      {"insertId": "SITE:1658004655:22:4", "site_id": "SITE",
+        "time_start": 1658004645, "time_end": 1658004645,
+        "usage_liters": 1.5, "meter_reading": 37255}
+    ]);
+  });
+
+  test(`handles BigQuery insert error`, async () => {
+    mockedInsert.mockRejectedValueOnce(new Error("BigQuery error"));
+    const message = {
+      attributes: {device_id: "DEVICE", event: "waterbot/data", published_at: "2022-07-16T23:30:46.597Z"},
+      data: null,
+    }
+
+    const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+    const consoleError = jest.spyOn(console, "error").mockImplementation(doNothing);
+    await dataCapture(message, {});
+    log.mockRestore();
+
+    // Make sure error makes it to the logs
+    expect(consoleError).toHaveBeenCalledWith(
+      "ERROR:",
+      expect.objectContaining({message: "BigQuery error"})
+    );
+    consoleError.mockRestore();
+  });
 });

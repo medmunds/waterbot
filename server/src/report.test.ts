@@ -1,40 +1,42 @@
 import {Request} from 'jest-express/lib/request';
 import {Response} from 'jest-express/lib/response';
-import {mocked} from 'ts-jest/utils';
 import {DateTime} from 'luxon';
 import {bigquery} from './bigquery';
-import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId} from './config';
+import {datasetId, defaultTimezone, projectId, REPORTING_DECIMAL_PLACES} from './config';
 import {report, reportDefs} from './report';
+import {HttpFunction} from "@google-cloud/functions-framework/build/src/functions";
 
-
-// Mock DateTime.now() for consistent "now"
-const mockNowString = "2020-02-22T14:23:45.123Z";
+// Mock Date.now() for consistent "now"
+const mockNowString = "2020-02-22T14:23:45.123-08:00";
 const mockNowDateTime = DateTime.fromISO(mockNowString, {zone: 'utc'});
 const mockNowTimestamp = mockNowDateTime.toMillis();
-jest.mock('luxon', () => {
-  const luxon = jest.requireActual('luxon');
-  const fixedNow = luxon.DateTime.fromISO("2020-02-22T14:23:45.123Z", {zone: 'utc'});
-  luxon.DateTime.now = jest.fn().mockReturnValue(fixedNow);
-  return luxon;
+
+beforeEach(() => {
+  jest.useFakeTimers({now: mockNowDateTime.toMillis()});
 });
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 
 // Mock BigQuery (as used by report function)
 jest.mock('./bigquery');
-const mockedTimestamp = jest.fn().mockImplementation(d => DateTime.fromJSDate(d, {zone: 'utc'}).toISO());
 const mockedQuery = jest.fn().mockResolvedValue([[]]);
-const mockedBigQuery = mocked(bigquery);
-mockedBigQuery.timestamp = mockedTimestamp;
+const mockedBigQuery = jest.mocked(bigquery);
 mockedBigQuery.query = mockedQuery;
+
+const doNothing = () => {};
 
 
 // Emulate an express-style call to fn
 async function expressCall(
-  fn: (req: Request, res: Response) => any,
+  fn: HttpFunction,
   request: Request,
 ): Promise<Response> {
   const response = new Response();
   await new Promise((resolve, reject) => {
     response.end.mockImplementation(resolve);
+    // @ts-ignore - jest-express works for our purposes here, though the types are divergent
     fn(request, response);
   });
   return response;
@@ -43,31 +45,29 @@ async function expressCall(
 
 test(`recent report`, async () => {
   const data = [{
-    usage_cuft: 0,
-    current_reading_cuft: 22442.7,
-    time: "2021-04-08 18:37:43-07:00",
-    period_sec: 14403,
-    battery_pct: 98.45,
-    battery_v: 4.1,
-    wifi_signal: -64,
+    period_start: 0,
+    label: "2021-04-08 18:37:00-07:00",
+    usage_liters: 0,
+    is_exact: true,
   }, {
-    usage_cuft: 0,
-    current_reading_cuft: 22442.7,
-    time: "2021-04-08 22:37:46-07:00",
-    period_sec: 14403,
-    battery_pct: 98.93,
-    battery_v: 4.1,
-    wifi_signal: -63,
+    period_start: 0,
+    label: "2021-04-08 18:39:00-07:00",
+    usage_liters: 0,
+    is_exact: true,
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID&type=recent"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=recent"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
+  expect(response.json).toHaveBeenCalledWith({
+    data,
+    timestamp: mockNowTimestamp,
+    generated_at: mockNowString,
+  });
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -75,10 +75,12 @@ test(`recent report`, async () => {
       projectId,
     },
     params: {
-      cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2020-02-08T08:00:00.000Z", // start of day (in report timezone) 14 days before "now"
+      label_format: "%Y-%m-%d %H:%M:%S%Ez",
+      start_datetime: "2020-02-21 00:00:00",
+      end_datetime: "2020-02-22 23:59:59",
+      site_id: "TEST_SITE",
       timezone: defaultTimezone,
+      usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
     query: reportDefs.recent.query,
     useLegacySql: false,
@@ -87,33 +89,29 @@ test(`recent report`, async () => {
 
 test(`hourly report`, async () => {
   const data = [{
-    hour: "2021-04-08 18-07:00",
-    usage_cuft: 0,
-    num_readings: 1,
-    last_reading_cuft: 22442.7,
-    last_reading_time: "2021-04-08 18:37:43-07:00",
-    min_battery_pct: 98.45,
-    min_battery_v: 4.1,
-    avg_wifi_signal: -64,
+    period_start: 0,
+    label: "2021-04-08 18-07:00",
+    usage_liters: 0,
+    is_exact: true,
   }, {
-    hour: "2021-04-08 22-07:00",
-    usage_cuft: 0,
-    num_readings: 1,
-    last_reading_cuft: 22442.7,
-    last_reading_time: "2021-04-08 22:37:46-07:00",
-    min_battery_pct: 98.93,
-    min_battery_v: 4.1,
-    avg_wifi_signal: -63,
+    period_start: 0,
+    label: "2021-04-08 19-07:00",
+    usage_liters: 0,
+    is_exact: true,
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID&type=hourly"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=hourly"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
+  expect(response.json).toHaveBeenCalledWith({
+    data,
+    timestamp: mockNowTimestamp,
+    generated_at: mockNowString,
+  });
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -121,10 +119,12 @@ test(`hourly report`, async () => {
       projectId,
     },
     params: {
-      cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2020-02-08T08:00:00.000Z", //start of day (in report timezone) 14 days before "now"
+      label_format: "%Y-%m-%d %H%Ez",
+      start_datetime: "2020-02-08 00:00:00",
+      end_datetime: "2020-02-22 23:59:59",
+      site_id: "TEST_SITE",
       timezone: defaultTimezone,
+      usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
     query: reportDefs.hourly.query,
     useLegacySql: false,
@@ -133,18 +133,22 @@ test(`hourly report`, async () => {
 
 test(`daily report`, async () => {
   const data = [
-    {date: "2019-12-31", usage_cuft: 0, num_readings: 2, last_reading_cuft: 14618.5},
-    {date: "2020-01-02", usage_cuft: 0, num_readings: 6, last_reading_cuft: 14618.5},
+    {period_start: 0, label: "2019-12-31", usage_liters: 0, is_exact: true},
+    {period_start: 0, label: "2020-01-02", usage_liters: 0, is_exact: true},
   ];
   mockedQuery.mockResolvedValueOnce([data]);
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID&type=daily"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=daily"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=43200");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
+  expect(response.json).toHaveBeenCalledWith({
+    data,
+    timestamp: mockNowTimestamp,
+    generated_at: mockNowString,
+  });
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -152,10 +156,12 @@ test(`daily report`, async () => {
       projectId,
     },
     params: {
-      cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2019-01-01T08:00:00.000Z", // start of year (in report timezone) 12 months before "now"
+      label_format: "%Y-%m-%d",
+      start_date: "2019-02-01",
+      end_date: "2020-02-29",
+      site_id: "TEST_SITE",
       timezone: defaultTimezone,
+      usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
     query: reportDefs.daily.query,
     useLegacySql: false,
@@ -164,18 +170,22 @@ test(`daily report`, async () => {
 
 test(`monthly report`, async () => {
   const data = [
-    {month: "2017-12", usage_cuft: 11.8, num_readings: 48, last_reading_cuft: 4424},
-    {month: "2018-01", usage_cuft: 81.6, num_readings: 292, last_reading_cuft: 4505.6},
+    {period_start: 0, label: "2019-12", usage_liters: 11.45, is_exact: true},
+    {period_start: 0, label: "2020-01", usage_liters: 16.832, is_exact: true},
   ];
   mockedQuery.mockResolvedValueOnce([data]);
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID&type=monthly"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=monthly"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(response.getHeader('Cache-Control')).toEqual("public, max-age=86400");
-  expect(response.json).toHaveBeenCalledWith({data, timestamp: mockNowTimestamp});
+  expect(response.json).toHaveBeenCalledWith({
+    data,
+    timestamp: mockNowTimestamp,
+    generated_at: mockNowString,
+  });
 
   expect(mockedQuery).toHaveBeenCalledWith({
     defaultDataset: {
@@ -183,10 +193,12 @@ test(`monthly report`, async () => {
       projectId,
     },
     params: {
-      cuft_decimal_places: CUFT_DECIMAL_PLACES,
-      device_id: "TEST_DEVICE_ID",
-      start_timestamp: "2017-01-01T08:00:00.000Z", // start of year (in report timezone) 3 years before "now"
+      label_format: "%Y-%m",
+      start_date: "2017-01-01",
+      end_date: "2020-12-31",
+      site_id: "TEST_SITE",
       timezone: defaultTimezone,
+      usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
     query: reportDefs.monthly.query,
     useLegacySql: false,
@@ -194,8 +206,8 @@ test(`monthly report`, async () => {
 });
 
 test(`default report type is daily`, async () => {
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
@@ -205,31 +217,31 @@ test(`default report type is daily`, async () => {
 });
 
 test(`supports CORS preflight for any origin`, async () => {
-  const request = new Request("/?device_id=TEST_DEVICE_ID&type=daily", {method: "OPTIONS"});
+  const request = new Request("/?site_id=TEST_SITE&type=daily", {method: "OPTIONS"});
   const response = await expressCall(report, request);
 
   expect(response.statusCode).toEqual(204);
   expect(response.getHeader('Access-Control-Allow-Origin')).toEqual('*');
 });
 
-test(`requires device_id param`, async () => {
+test(`requires site_id param`, async () => {
   const request = new Request("/?type=daily");
   const response = await expressCall(report, request);
 
-  expect(response.statusCode).toEqual(400);
-  expect(response.json).toHaveBeenCalledWith({error: `Param 'device_id' is required`});
+  expect(response.statusCode).toEqual(422);
+  expect(response.json).toHaveBeenCalledWith({error: `Param 'site_id' is required`});
 });
 
 test(`rejects unexpected report type`, async () => {
-  const request = new Request("/?device_id=TEST_DEVICE_ID&type=semiweekly");
+  const request = new Request("/?site_id=TEST_SITE&type=semiweekly");
   const response = await expressCall(report, request);
 
-  expect(response.statusCode).toEqual(400);
+  expect(response.statusCode).toEqual(422);
   expect(response.json).toHaveBeenCalledWith({error: `Unknown 'type'`});
 });
 
 test(`rejects post`, async () => {
-  const request = new Request("/?device_id=TEST_DEVICE_ID&type=daily", {method: "POST"});
+  const request = new Request("/?site_id=TEST_SITE&type=daily", {method: "POST"});
   const response = await expressCall(report, request);
 
   expect(response.statusCode).toEqual(405);
@@ -237,16 +249,16 @@ test(`rejects post`, async () => {
 });
 
 test(`handles duplicate query params`, async () => {
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
   const response = await expressCall(report,
-    new Request("/?device_id=DEVICE1&device_id=DEVICE2&type=recent&type=monthly"));
+    new Request("/?site_id=TEST_SITE1&site_id=TEST_SITE2&type=recent&type=monthly"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(mockedQuery).toHaveBeenCalledWith(
     expect.objectContaining({
       query: reportDefs.recent.query,
-      params: expect.objectContaining({device_id: "DEVICE1"}),
+      params: expect.objectContaining({site_id: "TEST_SITE1"}),
     }),
   );
 });
@@ -254,9 +266,9 @@ test(`handles duplicate query params`, async () => {
 test(`handles BigQuery error`, async () => {
   mockedQuery.mockRejectedValueOnce(new Error("BigQuery error"));
 
-  const log = jest.spyOn(console, "log").mockImplementation(() => {});
-  const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
-  const response = await expressCall(report, new Request("/?device_id=TEST_DEVICE_ID&type=recent"));
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const consoleError = jest.spyOn(console, "error").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=recent"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(400);

@@ -1,8 +1,12 @@
 export const projectId = "molten-turbine-171801";
-export const datasetId = "meter";
-export const tableId = "readings";
+export const datasetId = "waterbot";
+export const usageTableId = "usage_data";
+export const deviceTableId = "device_data";
+export const deviceSiteInfoTableId = "device_site_info";
 
 export const defaultTimezone = "US/Pacific";
 
-export const CUFT_PER_METER_TICK = 0.1; // meter ticks are 1/10 cubic foot
-export const CUFT_DECIMAL_PLACES = 7; // for rounding historic readings (where cuft was computed from gallons)
+export const REPORTING_DECIMAL_PLACES = 5;
+
+export const LITERS_PER_GALLON = 3.78541;
+export const LITERS_PER_CUFT = 28.3168;

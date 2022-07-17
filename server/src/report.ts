@@ -1,12 +1,19 @@
-// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs14
+// gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs16
 // gcloud functions logs read report --limit 50
 // https://us-central1-molten-turbine-171801.cloudfunctions.net/report
+// noinspection SqlResolve
 
 
 import type {HttpFunction} from '@google-cloud/functions-framework/build/src/functions';
 import {DateTime} from 'luxon';
 import {bigquery} from './bigquery';
-import {CUFT_DECIMAL_PLACES, datasetId, defaultTimezone, projectId, tableId} from './config';
+import {
+  datasetId,
+  defaultTimezone,
+  projectId,
+  usageTableId,
+  REPORTING_DECIMAL_PLACES,
+} from './config';
 
 
 type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
@@ -14,94 +21,131 @@ type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
 
 interface TReportDef {
   query: string;
-  start_time: (now?: DateTime) => DateTime;
+  params: (now: DateTime) => Record<string, string>;
   cache_seconds: number;
 }
 
 
+// Convert Luxon DateTime to BigQuery compatible DATETIME or DATE literals
+const bqDateTime = (dt: DateTime) => dt.toFormat("yyyy-MM-dd HH:mm:ss");
+const bqDate = (dt: DateTime) => dt.toFormat("yyyy-MM-dd"); // or dt.toISODate()
+
+
+/**
+ * Construct a query that reports usage per period.
+ * The resulting query requires parameters:
+ *   label_format
+ *   timezone
+ *   usage_decimal_places
+ *   site_id
+ * plus any parameters needed for the periodsGenerator.
+ *
+ * @param periodsGenerator a subquery that generates a table
+ *   with columns `period_start` and `period_end` which are the
+ *   timestamps of the start (inclusive) and end (exclusive)
+ *   of each period in the report.
+ */
+const usageReportQuery = (periodsGenerator: string) => `
+  WITH periods AS (${periodsGenerator})
+  SELECT
+    period_start,
+    FORMAT_TIMESTAMP(@label_format, period_start, @timezone) AS label,
+    ROUND(
+      SUM(usage_liters * IF(
+        0 = TIMESTAMP_DIFF(time_end, time_start, SECOND),
+        1,
+        TIMESTAMP_DIFF(
+          LEAST(time_end, period_end),
+          GREATEST(time_start, period_start), SECOND)
+        / TIMESTAMP_DIFF(time_end, time_start, SECOND))),
+      @usage_decimal_places) AS usage_liters,
+    LOGICAL_AND(time_start >= period_start AND time_end <= period_end) AS is_exact,
+    COUNT(*) AS num_readings
+  FROM \`${usageTableId}\`
+    JOIN periods ON time_end >= period_start AND time_start < period_end
+  WHERE
+    site_id = @site_id
+  GROUP BY period_start
+  ORDER BY period_start
+  ;
+`;
+
+
 export const reportDefs: Record<TReportType, TReportDef> = {
   recent: {
-    query: `
-      #standardSQL
+    query: usageReportQuery(`
       SELECT
-        ROUND(usage_cuft, @cuft_decimal_places) AS usage_cuft,
-        ROUND(current_reading_cuft, @cuft_decimal_places) AS current_reading_cuft,
-        FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez', timestamp, @timezone) AS \`time\`,
-        period_sec,
-        ROUND(battery_pct, 2) AS battery_pct,
-        ROUND(battery_v, 1) AS battery_v,
-        wifi_signal
-      FROM \`${tableId}\`
-      WHERE
-        timestamp >= @start_timestamp
-        AND device_id = @device_id
-      ORDER BY timestamp ASC
-      ;`,
-    start_time: (now) => (now ?? DateTime.now()).startOf('day').minus({days: 14}),
+        period_start,
+        TIMESTAMP_ADD(period_start, INTERVAL 1 MINUTE) AS period_end
+      FROM UNNEST(
+        GENERATE_TIMESTAMP_ARRAY(
+          TIMESTAMP(@start_datetime, @timezone),
+          TIMESTAMP(@end_datetime, @timezone),
+          INTERVAL 1 MINUTE)
+      ) AS period_start
+    `),
+    params: (now) => ({
+      label_format: '%Y-%m-%d %H:%M:%S%Ez',
+      start_datetime: bqDateTime(now.startOf('day').minus({days: 1})),
+      end_datetime: bqDateTime(now.endOf('day')),
+    }),
     cache_seconds: 5 * 60,
   },
   hourly: {
-    query: `
-      #standardSQL
+    query: usageReportQuery(`
       SELECT
-        FORMAT_TIMESTAMP('%Y-%m-%d %H%Ez', timestamp, @timezone) AS \`hour\`,
-        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
-        COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft,
-        FORMAT_TIMESTAMP('%Y-%m-%d %H:%M:%S%Ez', MAX(timestamp), @timezone) AS last_reading_time,
-        ROUND(MIN(battery_pct), 2) AS min_battery_pct,
-        ROUND(MIN(battery_v), 1) AS min_battery_v,
-        ROUND(AVG(wifi_signal), 1) AS avg_wifi_signal
-      FROM \`${tableId}\`
-      WHERE
-        timestamp >= @start_timestamp
-        AND device_id = @device_id
-      GROUP BY \`hour\`
-      ORDER BY \`hour\` ASC
-      ;`,
-    start_time: (now) => (now ?? DateTime.now()).startOf('day').minus({days: 14}),
+        period_start,
+        TIMESTAMP_ADD(period_start, INTERVAL 1 HOUR) AS period_end
+      FROM UNNEST(
+        GENERATE_TIMESTAMP_ARRAY(
+          TIMESTAMP(@start_datetime, @timezone),
+          TIMESTAMP(@end_datetime, @timezone),
+          INTERVAL 1 HOUR)
+      ) AS period_start
+    `),
+    params: (now) => ({
+      label_format: '%Y-%m-%d %H%Ez',
+      start_datetime: bqDateTime(now.startOf('day').minus({days: 14})),
+      end_datetime: bqDateTime(now.endOf('day')),
+    }),
     cache_seconds: 5 * 60,
   },
   daily: {
-    query: `
-      #standardSQL
+    query: usageReportQuery(`
       SELECT
-        FORMAT_TIMESTAMP('%Y-%m-%d', timestamp, @timezone) AS \`date\`,
-        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
-        COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft
-      FROM \`${tableId}\`
-      WHERE
-        timestamp >= @start_timestamp
-        AND device_id = @device_id
-      GROUP BY \`date\`
-      ORDER BY \`date\` ASC
-      ;`,
-    start_time: (now) => (now ?? DateTime.now()).startOf('year').minus({months: 12}),
+        TIMESTAMP(date_start, @timezone) AS period_start,
+        TIMESTAMP(DATE_ADD(date_start, INTERVAL 1 DAY), @timezone) AS period_end,
+      FROM UNNEST(
+        GENERATE_DATE_ARRAY(@start_date, @end_date, INTERVAL 1 DAY)
+      ) AS date_start
+    `),
+    params: (now) => ({
+      label_format: '%Y-%m-%d',
+      start_date: bqDate(now.startOf('month').minus({months: 12})),
+      end_date: bqDate(now.endOf('month')),
+    }),
     cache_seconds: 12 * 60 * 60,
   },
   monthly: {
-    query: `
-      #standardSQL
+    query: usageReportQuery(`
       SELECT
-        FORMAT_TIMESTAMP('%Y-%m', timestamp, @timezone) AS \`month\`,
-        ROUND(SUM(usage_cuft), @cuft_decimal_places) AS usage_cuft,
-        COUNT(*) AS num_readings,
-        ROUND(MAX(current_reading_cuft), @cuft_decimal_places) AS last_reading_cuft
-      FROM \`${tableId}\`
-      WHERE
-        timestamp >= @start_timestamp
-        AND device_id = @device_id
-      GROUP BY \`month\`
-      ORDER BY \`month\` ASC
-      ;`,
-    start_time: (now) => (now ?? DateTime.now()).startOf('year').minus({years: 3}),
+        TIMESTAMP(date_start, @timezone) AS period_start,
+        TIMESTAMP(DATE_ADD(date_start, INTERVAL 1 MONTH), @timezone) AS period_end,
+      FROM UNNEST(
+        GENERATE_DATE_ARRAY(@start_date, @end_date, INTERVAL 1 MONTH)
+      ) AS date_start
+    `),
+    params: (now) => ({
+      label_format: '%Y-%m',
+      start_date: bqDate(now.startOf('year').minus({years: 3})),
+      end_date: bqDate(now.endOf('year')),
+    }),
     cache_seconds: 24 * 60 * 60,
   },
 };
 
 
-export const report: HttpFunction = (req, res) => {
+export const report: HttpFunction = async (req, res) => {
   if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
     res.status(405).json({error: `Method not allowed`}).end();
     return;
@@ -116,29 +160,26 @@ export const report: HttpFunction = (req, res) => {
   const type = typeof rawType === 'string' ? rawType.toLowerCase() as TReportType : 'daily';
   const report = reportDefs[type];
   if (!report) {
-    res.status(400).json({error: `Unknown 'type'`}).end();
+    res.status(422).json({error: `Unknown 'type'`}).end();
     return;
   }
 
   const timezone = defaultTimezone;
-  const device_id = Array.isArray(req.query.device_id) ? req.query.device_id[0] : req.query.device_id;
-  if (!device_id) {
-    res.status(400).json({error: `Param 'device_id' is required`}).end();
+  const site_id = Array.isArray(req.query.site_id) ? req.query.site_id[0] : req.query.site_id;
+  if (!site_id) {
+    res.status(422).json({error: `Param 'site_id' is required`}).end();
     return;
   }
 
-  const query = report.query;
+  const {query, params} = report;
   const now = DateTime.now().setZone(timezone);
-  const start_time = report.start_time(now);
-  const start_timestamp = bigquery.timestamp(start_time.toJSDate());
-
   const queryOptions = {
     query,
     params: {
-      device_id,
-      start_timestamp,
+      site_id,
       timezone,
-      cuft_decimal_places: CUFT_DECIMAL_PLACES,
+      usage_decimal_places: REPORTING_DECIMAL_PLACES,
+      ...params(now),
     },
     useLegacySql: false,
     defaultDataset: {
@@ -147,27 +188,25 @@ export const report: HttpFunction = (req, res) => {
     },
   };
 
-  console.log(`Starting ${type} query:`, queryOptions);
-  bigquery
-    .query(queryOptions)
-    .then(function queryComplete(results) {
-      const rows = results[0];
-      console.log(`Query ${type} complete: ${rows.length} rows`);
-      const result = {
-        data: rows,
-        timestamp: +now.toJSDate(),
-        // would be nice if we could determine whether BigQuery result was cached
-      };
-      res.set('Cache-Control', `public, max-age=${report.cache_seconds}`);
-      res.json(result);
-      res.end();
-    })
-    .catch((err) => {
-      console.error('ERROR:', err);
-      if (!res.headersSent) {
-        res.status(400);
-      }
-      res.json({error: err.toString()});
-      res.end();
-    });
+  try {
+    console.log(`Starting ${type} query:`, queryOptions);
+    const [rows] = await bigquery.query(queryOptions);
+    console.log(`Query ${type} complete: ${rows.length} rows`);
+    const result = {
+      data: rows,
+      generated_at: now.toISO({suppressMilliseconds: true}),
+      timestamp: +now.toJSDate(),
+      // would be nice if we could determine whether BigQuery result was cached
+    };
+    res.set('Cache-Control', `public, max-age=${report.cache_seconds}`);
+    res.json(result);
+    res.end();
+  } catch (err) {
+    console.error('ERROR:', err);
+    if (!res.headersSent) {
+      res.status(400);
+    }
+    res.json({error: `${err}`});
+    res.end();
+  }
 }
