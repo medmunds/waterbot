@@ -16,7 +16,7 @@ import {
 } from './config';
 
 
-type TReportType = 'recent' | 'hourly' | 'daily' | 'monthly';
+type TReportType = 'minutely' | 'hourly' | 'daily' | 'monthly' | 'device';
 
 
 interface TReportDef {
@@ -83,7 +83,7 @@ const usageReportQuery = (periodsGenerator: string) => `
 
 
 export const reportDefs: Record<TReportType, TReportDef> = {
-  recent: {
+  minutely: {
     query: usageReportQuery(`
       SELECT
         period_start,
@@ -97,8 +97,8 @@ export const reportDefs: Record<TReportType, TReportDef> = {
     `),
     params: (now) => ({
       label_format: '%Y-%m-%d %H:%M:%S%Ez',
-      start_datetime: bqDateTime(now.startOf('day').minus({days: 1})),
-      end_datetime: bqDateTime(now.endOf('day')),
+      start_datetime: bqDateTime(now.startOf('hour').minus({hours: 24})),
+      end_datetime: bqDateTime(now.endOf('hour')),
     }),
     cache_seconds: 5 * 60,
   },
@@ -116,10 +116,10 @@ export const reportDefs: Record<TReportType, TReportDef> = {
     `),
     params: (now) => ({
       label_format: '%Y-%m-%d %H:%M:%S%Ez',
-      start_datetime: bqDateTime(now.startOf('day').minus({days: 14})),
+      start_datetime: bqDateTime(now.startOf('day').minus({days: 7})),
       end_datetime: bqDateTime(now.endOf('day')),
     }),
-    cache_seconds: 5 * 60,
+    cache_seconds: 3 * 60 * 60,
   },
   daily: {
     query: usageReportQuery(`
@@ -132,8 +132,8 @@ export const reportDefs: Record<TReportType, TReportDef> = {
     `),
     params: (now) => ({
       label_format: '%Y-%m-%d',
-      start_date: bqDate(now.startOf('month').minus({months: 12})),
-      end_date: bqDate(now.endOf('month')),
+      start_date: bqDate(now.startOf('year').minus({years: 1})),
+      end_date: bqDate(now.endOf('year')),
     }),
     cache_seconds: 12 * 60 * 60,
   },
@@ -153,6 +153,42 @@ export const reportDefs: Record<TReportType, TReportDef> = {
     }),
     cache_seconds: 24 * 60 * 60,
   },
+  device: {
+    query: `
+      SELECT
+        FORMAT_TIMESTAMP(@label_format, time_generated, @timezone) AS label,
+        meter_reading,
+        -- battery:
+        battery_v,
+        battery_pct,
+        -- wifi:
+        wifi_strength_pct,
+        wifi_quality_pct,
+        wifi_signal_dbm,
+        wifi_snr_db,
+        -- message delivery:
+        TIMESTAMP_DIFF(time_sent, time_generated, SECOND) AS publish_sec,
+        TIMESTAMP_DIFF(time_received, time_sent, SECOND) AS delivery_sec,
+        network_retry_count,
+        -- other:
+        time_generated,
+        sequence,
+        firmware_version
+      FROM \`molten-turbine-171801\`.waterbot.device_data
+      WHERE
+        site_id = @site_id
+        AND time_generated >= TIMESTAMP(@start_datetime, @timezone)
+        AND time_generated < TIMESTAMP(@end_datetime, @timezone)
+      ORDER BY time_generated, sequence
+      ;
+    `,
+    params: (now) => ({
+      label_format: '%Y-%m-%d %H:%M:%S%Ez',
+      start_datetime: bqDateTime(now.startOf('hour').minus({hours: 24})),
+      end_datetime: bqDateTime(now.endOf('hour')),
+    }),
+    cache_seconds: 5 * 60,
+  }
 };
 
 

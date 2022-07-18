@@ -7,7 +7,7 @@ import {report, reportDefs} from './report';
 import {HttpFunction} from "@google-cloud/functions-framework/build/src/functions";
 
 // Mock Date.now() for consistent "now"
-const mockNowString = "2020-02-22T14:23:45.123-08:00";
+const mockNowString = "2022-07-18T12:20:00.123-07:00";
 const mockNowDateTime = DateTime.fromISO(mockNowString, {zone: 'utc'});
 const mockNowTimestamp = mockNowDateTime.toMillis();
 
@@ -43,7 +43,7 @@ async function expressCall(
 }
 
 
-test(`recent report`, async () => {
+test(`minutely report`, async () => {
   const data = [{
     "label": "2022-07-18 08:00:00-07:00",
     "period_start": "2022-07-18T15:00:00Z",
@@ -64,7 +64,7 @@ test(`recent report`, async () => {
   mockedQuery.mockResolvedValueOnce([data]);
 
   const log = jest.spyOn(console, "log").mockImplementation(doNothing);
-  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=recent"));
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=minutely"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
@@ -82,13 +82,13 @@ test(`recent report`, async () => {
     },
     params: {
       label_format: "%Y-%m-%d %H:%M:%S%Ez",
-      start_datetime: "2020-02-21 00:00:00",
-      end_datetime: "2020-02-22 23:59:59",
+      start_datetime: "2022-07-17 12:00:00", // start of hour (in @timezone) 24 hours before "now"
+      end_datetime: "2022-07-18 12:59:59", // end of current hour
       site_id: "TEST_SITE",
       timezone: defaultTimezone,
       usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
-    query: reportDefs.recent.query,
+    query: reportDefs.minutely.query,
     useLegacySql: false,
   });
 });
@@ -118,7 +118,7 @@ test(`hourly report`, async () => {
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
-  expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
+  expect(response.getHeader('Cache-Control')).toEqual("public, max-age=10800");
   expect(response.json).toHaveBeenCalledWith({
     data,
     timestamp: mockNowTimestamp,
@@ -132,8 +132,8 @@ test(`hourly report`, async () => {
     },
     params: {
       label_format: "%Y-%m-%d %H:%M:%S%Ez",
-      start_datetime: "2020-02-08 00:00:00",
-      end_datetime: "2020-02-22 23:59:59",
+      start_datetime: "2022-07-11 00:00:00", // start of day (in @timezone) 7 days before "now"
+      end_datetime: "2022-07-18 23:59:59", // end of current day
       site_id: "TEST_SITE",
       timezone: defaultTimezone,
       usage_decimal_places: REPORTING_DECIMAL_PLACES,
@@ -182,8 +182,8 @@ test(`daily report`, async () => {
     },
     params: {
       label_format: "%Y-%m-%d",
-      start_date: "2019-02-01",
-      end_date: "2020-02-29",
+      start_date: "2021-01-01", // start of year, 1 year before now
+      end_date: "2022-12-31", // end of current year
       site_id: "TEST_SITE",
       timezone: defaultTimezone,
       usage_decimal_places: REPORTING_DECIMAL_PLACES,
@@ -224,13 +224,76 @@ test(`monthly report`, async () => {
     },
     params: {
       label_format: "%Y-%m",
-      start_date: "2017-01-01",
-      end_date: "2020-12-31",
+      start_date: "2019-01-01", // start of year 3 years before now
+      end_date: "2022-12-31", // end of current year
       site_id: "TEST_SITE",
       timezone: defaultTimezone,
       usage_decimal_places: REPORTING_DECIMAL_PLACES,
     },
     query: reportDefs.monthly.query,
+    useLegacySql: false,
+  });
+});
+
+test(`device report`, async () => {
+  const data = [{
+    "label": "2022-07-18 02:09:25-07:00",
+    "meter_reading": "37671",
+    "battery_v": "4.0866",
+    "battery_pct": "99.7148",
+    "wifi_strength_pct": "91.9997",
+    "wifi_quality_pct": "93.547",
+    "wifi_signal_dbm": "-54",
+    "wifi_snr_db": "38",
+    "publish_sec": "9",
+    "delivery_sec": "3",
+    "network_retry_count": "0",
+    "time_generated": "2022-07-18T09:09:25Z",
+    "sequence": "131",
+    "firmware_version": "0.3.9"
+  }, {
+    "label": "2022-07-18 06:09:25-07:00",
+    "meter_reading": "37671",
+    "battery_v": "4.0866",
+    "battery_pct": "99.7148",
+    "wifi_strength_pct": "77.9995",
+    "wifi_quality_pct": "70.9667",
+    "wifi_signal_dbm": "-61",
+    "wifi_snr_db": "31",
+    "publish_sec": "9",
+    "delivery_sec": "4",
+    "network_retry_count": "0",
+    "time_generated": "2022-07-18T13:09:25Z",
+    "sequence": "132",
+    "firmware_version": "0.3.9"
+  }];
+  mockedQuery.mockResolvedValueOnce([data]);
+
+  const log = jest.spyOn(console, "log").mockImplementation(doNothing);
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=device"));
+  log.mockRestore();
+
+  expect(response.statusCode).toEqual(200);
+  expect(response.getHeader('Cache-Control')).toEqual("public, max-age=300");
+  expect(response.json).toHaveBeenCalledWith({
+    data,
+    timestamp: mockNowTimestamp,
+    generated_at: mockNowString,
+  });
+
+  expect(mockedQuery).toHaveBeenCalledWith({
+    defaultDataset: {
+      datasetId,
+      projectId,
+    },
+    params: expect.objectContaining({
+      label_format: "%Y-%m-%d %H:%M:%S%Ez",
+      start_datetime: "2022-07-17 12:00:00", // start of hour (in @timezone) 24 hours before now
+      end_datetime: "2022-07-18 12:59:59", // end of current hour
+      site_id: "TEST_SITE",
+      timezone: defaultTimezone,
+    }),
+    query: reportDefs.device.query,
     useLegacySql: false,
   });
 });
@@ -281,13 +344,13 @@ test(`rejects post`, async () => {
 test(`handles duplicate query params`, async () => {
   const log = jest.spyOn(console, "log").mockImplementation(doNothing);
   const response = await expressCall(report,
-    new Request("/?site_id=TEST_SITE1&site_id=TEST_SITE2&type=recent&type=monthly"));
+    new Request("/?site_id=TEST_SITE1&site_id=TEST_SITE2&type=hourly&type=monthly"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(200);
   expect(mockedQuery).toHaveBeenCalledWith(
     expect.objectContaining({
-      query: reportDefs.recent.query,
+      query: reportDefs.hourly.query,
       params: expect.objectContaining({site_id: "TEST_SITE1"}),
     }),
   );
@@ -298,7 +361,7 @@ test(`handles BigQuery error`, async () => {
 
   const log = jest.spyOn(console, "log").mockImplementation(doNothing);
   const consoleError = jest.spyOn(console, "error").mockImplementation(doNothing);
-  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=recent"));
+  const response = await expressCall(report, new Request("/?site_id=TEST_SITE&type=hourly"));
   log.mockRestore();
 
   expect(response.statusCode).toEqual(400);
