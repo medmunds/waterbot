@@ -121,6 +121,7 @@ export function extractUsageData(deviceInfo: DeviceSiteInfoRow, eventData: Water
       time_start: timeStart,
       time_end: timeEnd,
       usage_liters: missingPulses * litersPerMeterPulse,
+      usage_meter_units: missingPulses,
       meter_reading: meterReading,
     });
   }
@@ -133,6 +134,7 @@ export function extractUsageData(deviceInfo: DeviceSiteInfoRow, eventData: Water
       time_start: timeStart,
       time_end: timeStart, // single pulse occupies 0 time
       usage_liters: litersPerMeterPulse, // exactly one pulse's worth
+      usage_meter_units: 1,
       meter_reading: meterReading,
     });
   });

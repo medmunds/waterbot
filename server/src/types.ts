@@ -50,6 +50,7 @@ interface UsageDataRow {
   time_start: number; // timestamp
   time_end: number; // timestamp
   usage_liters: number; // float64
+  usage_meter_units?: number;
   meter_reading?: number;
 }
 

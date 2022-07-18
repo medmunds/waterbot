@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `waterbot.usage_data`
   time_start TIMESTAMP NOT NULL OPTIONS(description="Start of reporting period (UTC timestamp)"),
   time_end TIMESTAMP NOT NULL OPTIONS(description="End of reporting period (UTC timestamp); can equal time_start"),
   usage_liters FLOAT64 NOT NULL OPTIONS(description="Water used during reporting period (liters)"),
+  usage_meter_units INT OPTIONS(description="Water used during reporting period (in meter pulse units), if known"),
   meter_reading INT OPTIONS(description="Meter reading at time_end, if known (in meter pulse units)")
 ) OPTIONS (
   description = 'Water consumption data',
