@@ -45,15 +45,19 @@ async function expressCall(
 
 test(`recent report`, async () => {
   const data = [{
-    period_start: 0,
-    label: "2021-04-08 18:37:00-07:00",
-    usage_liters: 0,
-    is_exact: true,
+    "label": "2022-07-18 08:00:00-07:00",
+    "period_start": "2022-07-18T15:00:00Z",
+    "period_end": "2022-07-18T15:01:00Z",
+    "usage_liters": "15.14164",
+    "is_exact": "true",
+    "meter_reading": "37675",
   }, {
-    period_start: 0,
-    label: "2021-04-08 18:39:00-07:00",
-    usage_liters: 0,
-    is_exact: true,
+    "label": "2022-07-18 08:01:00-07:00",
+    "period_start": "2022-07-18T15:01:00Z",
+    "period_end": "2022-07-18T15:02:00Z",
+    "usage_liters": "15.14164",
+    "is_exact": "true",
+    "meter_reading": "37679",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
@@ -89,15 +93,19 @@ test(`recent report`, async () => {
 
 test(`hourly report`, async () => {
   const data = [{
-    period_start: 0,
-    label: "2021-04-08 18-07:00",
-    usage_liters: 0,
-    is_exact: true,
+    "label": "2022-07-17 09:00:00-07:00",
+    "period_start": "2022-07-17T16:00:00Z",
+    "period_end": "2022-07-17T17:00:00Z",
+    "usage_liters": "189.2705",
+    "is_exact": "true",
+    "meter_reading": "37494",
   }, {
-    period_start: 0,
-    label: "2021-04-08 19-07:00",
-    usage_liters: 0,
-    is_exact: true,
+    "label": "2022-07-17 10:00:00-07:00",
+    "period_start": "2022-07-17T17:00:00Z",
+    "period_end": "2022-07-17T18:00:00Z",
+    "usage_liters": "124.91853",
+    "is_exact": "true",
+    "meter_reading": "37527",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
@@ -119,7 +127,7 @@ test(`hourly report`, async () => {
       projectId,
     },
     params: {
-      label_format: "%Y-%m-%d %H%Ez",
+      label_format: "%Y-%m-%d %H:%M:%S%Ez",
       start_datetime: "2020-02-08 00:00:00",
       end_datetime: "2020-02-22 23:59:59",
       site_id: "TEST_SITE",
@@ -132,10 +140,21 @@ test(`hourly report`, async () => {
 });
 
 test(`daily report`, async () => {
-  const data = [
-    {period_start: 0, label: "2019-12-31", usage_liters: 0, is_exact: true},
-    {period_start: 0, label: "2020-01-02", usage_liters: 0, is_exact: true},
-  ];
+  const data = [{
+    "label": "2022-07-17",
+    "period_start": "2022-07-17T07:00:00Z",
+    "period_end": "2022-07-18T07:00:00Z",
+    "usage_liters": "1071.27103",
+    "is_exact": "true",
+    "meter_reading": "37671",
+  }, {
+    "label": "2022-07-18",
+    "period_start": "2022-07-18T07:00:00Z",
+    "period_end": "2022-07-19T07:00:00Z",
+    "usage_liters": "204.41214",
+    "is_exact": "true",
+    "meter_reading": "37725",
+  }];
   mockedQuery.mockResolvedValueOnce([data]);
 
   const log = jest.spyOn(console, "log").mockImplementation(doNothing);
@@ -169,10 +188,14 @@ test(`daily report`, async () => {
 });
 
 test(`monthly report`, async () => {
-  const data = [
-    {period_start: 0, label: "2019-12", usage_liters: 11.45, is_exact: true},
-    {period_start: 0, label: "2020-01", usage_liters: 16.832, is_exact: true},
-  ];
+  const data = [{
+    "label": "2022-07",
+    "period_start": "2022-07-01T07:00:00Z",
+    "period_end": "2022-08-01T07:00:00Z",
+    "usage_liters": "1294.61022",
+    "is_exact": "true",
+    "meter_reading": "37730",
+  }];
   mockedQuery.mockResolvedValueOnce([data]);
 
   const log = jest.spyOn(console, "log").mockImplementation(doNothing);

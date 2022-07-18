@@ -48,8 +48,9 @@ const bqDate = (dt: DateTime) => dt.toFormat("yyyy-MM-dd"); // or dt.toISODate()
 const usageReportQuery = (periodsGenerator: string) => `
   WITH periods AS (${periodsGenerator})
   SELECT
-    period_start,
     FORMAT_TIMESTAMP(@label_format, period_start, @timezone) AS label,
+    period_start,
+    period_end,
     ROUND(
       SUM(usage_liters * IF(
         0 = TIMESTAMP_DIFF(time_end, time_start, SECOND),
@@ -60,12 +61,15 @@ const usageReportQuery = (periodsGenerator: string) => `
         / TIMESTAMP_DIFF(time_end, time_start, SECOND))),
       @usage_decimal_places) AS usage_liters,
     LOGICAL_AND(time_start >= period_start AND time_end <= period_end) AS is_exact,
-    COUNT(*) AS num_readings
+    ARRAY_AGG(
+      -- TODO: if time_end >= period_end, estimate meter_reading at period_end
+      IF(time_end < period_end, meter_reading, NULL) IGNORE NULLS
+      ORDER BY time_end DESC LIMIT 1)[SAFE_OFFSET(0)] AS meter_reading
   FROM \`${usageTableId}\`
     JOIN periods ON time_end >= period_start AND time_start < period_end
   WHERE
     site_id = @site_id
-  GROUP BY period_start
+  GROUP BY period_start, period_end
   ORDER BY period_start
   ;
 `;
@@ -104,7 +108,7 @@ export const reportDefs: Record<TReportType, TReportDef> = {
       ) AS period_start
     `),
     params: (now) => ({
-      label_format: '%Y-%m-%d %H%Ez',
+      label_format: '%Y-%m-%d %H:%M:%S%Ez',
       start_datetime: bqDateTime(now.startOf('day').minus({days: 14})),
       end_datetime: bqDateTime(now.endOf('day')),
     }),
