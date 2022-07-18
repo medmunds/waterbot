@@ -49,15 +49,17 @@ test(`recent report`, async () => {
     "period_start": "2022-07-18T15:00:00Z",
     "period_end": "2022-07-18T15:01:00Z",
     "usage_liters": "15.14164",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37675",
+    "meter_reading_exact": "true",
   }, {
     "label": "2022-07-18 08:01:00-07:00",
     "period_start": "2022-07-18T15:01:00Z",
     "period_end": "2022-07-18T15:02:00Z",
     "usage_liters": "15.14164",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37679",
+    "meter_reading_exact": "true",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
@@ -97,15 +99,17 @@ test(`hourly report`, async () => {
     "period_start": "2022-07-17T16:00:00Z",
     "period_end": "2022-07-17T17:00:00Z",
     "usage_liters": "189.2705",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37494",
+    "meter_reading_exact": "true",
   }, {
     "label": "2022-07-17 10:00:00-07:00",
     "period_start": "2022-07-17T17:00:00Z",
     "period_end": "2022-07-17T18:00:00Z",
     "usage_liters": "124.91853",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37527",
+    "meter_reading_exact": "true",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
@@ -145,15 +149,17 @@ test(`daily report`, async () => {
     "period_start": "2022-07-17T07:00:00Z",
     "period_end": "2022-07-18T07:00:00Z",
     "usage_liters": "1071.27103",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37671",
+    "meter_reading_exact": "true",
   }, {
     "label": "2022-07-18",
     "period_start": "2022-07-18T07:00:00Z",
     "period_end": "2022-07-19T07:00:00Z",
     "usage_liters": "204.41214",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37725",
+    "meter_reading_exact": "true",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 
@@ -193,8 +199,9 @@ test(`monthly report`, async () => {
     "period_start": "2022-07-01T07:00:00Z",
     "period_end": "2022-08-01T07:00:00Z",
     "usage_liters": "1294.61022",
-    "is_exact": "true",
+    "usage_exact": "true",
     "meter_reading": "37730",
+    "meter_reading_exact": "true",
   }];
   mockedQuery.mockResolvedValueOnce([data]);
 

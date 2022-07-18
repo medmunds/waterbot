@@ -60,11 +60,18 @@ const usageReportQuery = (periodsGenerator: string) => `
           GREATEST(time_start, period_start), SECOND)
         / TIMESTAMP_DIFF(time_end, time_start, SECOND))),
       @usage_decimal_places) AS usage_liters,
-    LOGICAL_AND(time_start >= period_start AND time_end <= period_end) AS is_exact,
+    LOGICAL_AND(time_start >= period_start AND time_end <= period_end) AS usage_exact,
     ARRAY_AGG(
-      -- TODO: if time_end >= period_end, estimate meter_reading at period_end
-      IF(time_end < period_end, meter_reading, NULL) IGNORE NULLS
-      ORDER BY time_end DESC LIMIT 1)[SAFE_OFFSET(0)] AS meter_reading
+      CASE
+        WHEN time_end < period_end THEN meter_reading
+        WHEN TIMESTAMP_DIFF(time_end, time_start, SECOND) > 0 THEN
+          -- Estimate at period_end, rounding to whole meter units
+          CAST(meter_reading - usage_meter_units * SAFE_DIVIDE(
+            TIMESTAMP_DIFF(time_end, period_end, SECOND),
+            TIMESTAMP_DIFF(time_end, time_start, SECOND)) AS INTEGER)
+      END IGNORE NULLS
+      ORDER BY time_end DESC LIMIT 1)[SAFE_OFFSET(0)] AS meter_reading,
+    LOGICAL_AND(time_end < period_end OR usage_meter_units IS NULL) AS meter_reading_exact
   FROM \`${usageTableId}\`
     JOIN periods ON time_end >= period_start AND time_start < period_end
   WHERE
