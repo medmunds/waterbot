@@ -100,7 +100,11 @@ export function extractUsageData(deviceInfo: DeviceSiteInfoRow, eventData: Water
     use: reportedUsagePulses,
     pts: pulseTimestamps = [],
   } = eventData;
-  const {site_id: siteId, liters_per_meter_pulse: litersPerMeterPulse} = deviceInfo;
+  const {
+    device_id: deviceId,
+    site_id: siteId,
+    liters_per_meter_pulse: litersPerMeterPulse,
+  } = deviceInfo;
 
   // If 'lst' is 0, device has been reinitialized and 'use' must be ignored.
   const usagePulses = previousMeterReading > 0 ? reportedUsagePulses : 0;
@@ -116,7 +120,7 @@ export function extractUsageData(deviceInfo: DeviceSiteInfoRow, eventData: Water
       ? timeStart + pulseTimestamps[0]
       : timeOfReading;
     usageData.push({
-      insertId: `${siteId}:${timeOfReading}:${sequence}`,
+      insertId: `${deviceId}:${timeOfReading}:${sequence}`,
       site_id: siteId,
       time_start: timeStart,
       time_end: timeEnd,
@@ -129,7 +133,7 @@ export function extractUsageData(deviceInfo: DeviceSiteInfoRow, eventData: Water
     timeStart += timestampDelta; // pulseTimestamps are delta encoded
     meterReading += 1;
     usageData.push({
-      insertId: `${siteId}:${timeOfReading}:${sequence}:${pulseIndex}`,
+      insertId: `${deviceId}:${timeOfReading}:${sequence}:${pulseIndex}`,
       site_id: siteId,
       time_start: timeStart,
       time_end: timeStart, // single pulse occupies 0 time

@@ -35,13 +35,13 @@ describe(`extractUsageData`, () => {
       "pts": [15, 0, 1],
     });
     expect(extracted).toEqual([
-      { insertId: "SITE:10100:16:0", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:0", site_id: "SITE",
         time_start: 10040, time_end: 10040,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2008 },
-      { insertId: "SITE:10100:16:1", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:1", site_id: "SITE",
         time_start: 10040, time_end: 10040,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2009 },
-      { insertId: "SITE:10100:16:2", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:2", site_id: "SITE",
         time_start: 10041, time_end: 10041,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2010 },
     ]);
@@ -74,16 +74,16 @@ describe(`extractUsageData`, () => {
       "pts": [15, 0, 1],
     });
     expect(extracted).toEqual([
-      { insertId: "SITE:10100:16", site_id: "SITE",
+      { insertId: "DEVICE:10100:16", site_id: "SITE",
         time_start: 10025, time_end: 10040,
         usage_liters: 4.5, usage_meter_units: 3, meter_reading: 2007 },
-      { insertId: "SITE:10100:16:0", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:0", site_id: "SITE",
         time_start: 10040, time_end: 10040,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2008 },
-      { insertId: "SITE:10100:16:1", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:1", site_id: "SITE",
         time_start: 10040, time_end: 10040,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2009 },
-      { insertId: "SITE:10100:16:2", site_id: "SITE",
+      { insertId: "DEVICE:10100:16:2", site_id: "SITE",
         time_start: 10041, time_end: 10041,
         usage_liters: 1.5, usage_meter_units: 1, meter_reading: 2010 },
     ]);
@@ -102,7 +102,7 @@ describe(`extractUsageData`, () => {
       "pts": [],
     });
     expect(extracted).toEqual([
-      { insertId: "SITE:10100:16", site_id: "SITE",
+      { insertId: "DEVICE:10100:16", site_id: "SITE",
         time_start: 10025, time_end: 10100,
         usage_liters: 9.0, usage_meter_units: 6, meter_reading: 2010 },
     ]);
@@ -120,7 +120,7 @@ describe(`extractUsageData`, () => {
       "pts": [],
     });
     expect(extracted).toEqual([
-      { insertId: "SITE:10100:16", site_id: "SITE",
+      { insertId: "DEVICE:10100:16", site_id: "SITE",
         time_start: 10025, time_end: 10100,
         usage_liters: -9.0, usage_meter_units: -6, meter_reading: 2010 },
     ]);
@@ -261,19 +261,19 @@ describe(`dataCapture`, () => {
 
     expect(mockedTable).nthCalledWith(2, usageTableId);
     expect(mockedInsert).nthCalledWith(2, [
-      {"insertId": "SITE:1658004655:22:0", "site_id": "SITE",
+      {"insertId": "DEVICE:1658004655:22:0", "site_id": "SITE",
         "time_start": 1658004595, "time_end": 1658004595,
         "usage_liters": 1.5, "usage_meter_units": 1, "meter_reading": 37251},
-      {"insertId": "SITE:1658004655:22:1", "site_id": "SITE",
+      {"insertId": "DEVICE:1658004655:22:1", "site_id": "SITE",
         "time_start": 1658004607, "time_end": 1658004607,
         "usage_liters": 1.5, "usage_meter_units": 1, "meter_reading": 37252},
-      {"insertId": "SITE:1658004655:22:2", "site_id": "SITE",
+      {"insertId": "DEVICE:1658004655:22:2", "site_id": "SITE",
         "time_start": 1658004620, "time_end": 1658004620,
         "usage_liters": 1.5, "usage_meter_units": 1, "meter_reading": 37253},
-      {"insertId": "SITE:1658004655:22:3", "site_id": "SITE",
+      {"insertId": "DEVICE:1658004655:22:3", "site_id": "SITE",
         "time_start": 1658004632, "time_end": 1658004632,
         "usage_liters": 1.5, "usage_meter_units": 1, "meter_reading": 37254},
-      {"insertId": "SITE:1658004655:22:4", "site_id": "SITE",
+      {"insertId": "DEVICE:1658004655:22:4", "site_id": "SITE",
         "time_start": 1658004645, "time_end": 1658004645,
         "usage_liters": 1.5, "usage_meter_units": 1, "meter_reading": 37255}
     ]);
