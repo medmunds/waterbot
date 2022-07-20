@@ -11,7 +11,7 @@ import {connect} from 'react-redux';
 import Chart from '../components/Chart';
 import Scorecard from '../components/Scorecard';
 import Sparkline from '../components/Sparkline';
-import {selectRecentData, selectLastUpdate} from '../store/data';
+import {selectMinutelyData, selectDeviceData, selectLastUpdate} from '../store/data';
 import Section from "../components/Section";
 
 
@@ -22,7 +22,7 @@ function selectRecentRange(state) {
 }
 
 function selectLastReading(state) {
-  const recent = selectRecentData(state);  // not necessarily sorted
+  const recent = selectDeviceData(state);  // not necessarily sorted
   return maxBy(recent, 'timestamp');
 }
 
@@ -32,12 +32,11 @@ function selectLastReading(state) {
 
 function selectCurrentMeter(state) {
   const lastReading = selectLastReading(state) || {};
-  const {current_reading_cuft, timestamp} = lastReading;
+  const {meter_reading, timestamp} = lastReading;
 
   return {
-    value: current_reading_cuft,
-    fractionDigits: 1,
-    suffix: " cu ft",
+    value: meter_reading,
+    fractionDigits: 0,
     lastReadingTime: timestamp,
   };
 }
@@ -57,11 +56,11 @@ export const CurrentMeter = connect(selectCurrentMeter)(CurrentMeterComponent);
 // SparklineAndScorecard
 //
 
-function makeRecentSparklineSelector(valueKey, props) {
+function makeDeviceSparklineSelector(valueKey, props) {
   const {scorecard, sparkline} = props;
 
   return function select(state) {
-    const recent = selectRecentData(state);
+    const recent = selectDeviceData(state);
     const data = recent
       .sort((a, b) => (a.timestamp - b.timestamp))
       .map(row => ({x: row.timestamp, y: row[valueKey]}))
@@ -95,7 +94,7 @@ function ScorecardAndSparkline({scorecard, sparkline}) {
 // CurrentBattery
 //
 
-const selectCurrentBattery = makeRecentSparklineSelector('battery_pct', {
+const selectCurrentBattery = makeDeviceSparklineSelector('battery_pct', {
   scorecard: {
     title: "Battery charge",
     fractionDigits: 1,
@@ -113,18 +112,31 @@ export const CurrentBattery = connect(selectCurrentBattery)(ScorecardAndSparklin
 // CurrentWiFi
 //
 
-const selectCurrentWiFi = makeRecentSparklineSelector('wifi_signal', {
+const selectCurrentWiFiStrength = makeDeviceSparklineSelector('wifi_strength_pct', {
   scorecard: {
-    title: "WiFi signal",
-    fractionDigits: 0,
-    suffix: " dBm",
+    title: "WiFi strength",
+    fractionDigits: 1,
+    suffix: "%",
   },
   sparkline: {
-    yDomain: [-127, -1],
+    yDomain: [0, 100],
   },
 });
 
-export const CurrentWiFi = connect(selectCurrentWiFi)(ScorecardAndSparkline);
+export const CurrentWiFiStrength = connect(selectCurrentWiFiStrength)(ScorecardAndSparkline);
+
+const selectCurrentWiFiQuality = makeDeviceSparklineSelector('wifi_quality_pct', {
+  scorecard: {
+    title: "WiFi quality",
+    fractionDigits: 1,
+    suffix: "%",
+  },
+  sparkline: {
+    yDomain: [0, 100],
+  },
+});
+
+export const CurrentWiFiQuality = connect(selectCurrentWiFiQuality)(ScorecardAndSparkline);
 
 
 //
@@ -155,14 +167,10 @@ function formatTimestamp(ts) {
 
 function selectRecentChart(state) {
   const range = selectRecentRange(state);
-  const data = selectRecentData(state, range)
-    // FUTURE: .filter(row => row.period_sec > 0)
+  const data = selectMinutelyData(state, range)
     .map(row => ({
       x: row.timestamp,
       y: row.usageGals,
-      // FUTURE: use histogram range instead...
-      // x0: moment(row.timestamp).subtract(row.period_sec, 'seconds'),
-      // y: 60 * row.usageGals / row.period_sec, // gallons per minute
     }));
 
   const xDomain = [range.start(), range.end()];
@@ -182,7 +190,6 @@ function selectRecentChart(state) {
     // FUTURE: yTickFormat: formatNumber1Digit,
     series: [
       {label: "gallons", valueKey: "y", type: "bar"},
-      // FUTURE: {label: "GPM", valueKey: "y", type: "bar"},
     ],
   };
 }
@@ -196,13 +203,13 @@ export const RecentChart = connect(selectRecentChart)(Chart);
 
 function selectRecentScorecard(state) {
   const range = selectRecentRange(state);
-  const totalUsageGals = sumBy(selectRecentData(state, range), 'usageGals');
-  const valid = selectLastUpdate(state, 'recent') !== undefined;
+  const totalUsageGals = sumBy(selectMinutelyData(state, range), 'usageGals');
+  const valid = selectLastUpdate(state, 'minutely') !== undefined;
 
   return {
     title: "Last 24 hours",
     value: valid ? totalUsageGals : undefined,
-    fractionDigits: 1,
+    fractionDigits: 0,
     suffix: " gallons",
   };
 }
@@ -223,7 +230,8 @@ export default function RecentActivity() {
       <RecentScorecard/>
       <CurrentMeter/>
       <CurrentBattery/>
-      <CurrentWiFi/>
+      <CurrentWiFiStrength/>
+      <CurrentWiFiQuality/>
     </Section>
   );
 }

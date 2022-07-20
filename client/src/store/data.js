@@ -14,8 +14,8 @@ import {
   fetchDataRequest, fetchDataSuccess, fetchDataFailure
 } from "./actions";
 import {
-  deviceId,
-  GALLONS_PER_CUFT,
+  siteId,
+  GALLONS_PER_LITER,
   reportingTimezone,
   reportUrl
 } from "../config";
@@ -23,18 +23,21 @@ import {
 
 
 const initialState = {
-  // maps of timestampField: {row} (to simplify merging)
-  recent: {},
+  // maps of label: {row} (to simplify merging)
+  device: {},
+  minutely: {},
   daily: {},
   monthly: {},
   // freshness
   lastUpdate: {
-    recent: undefined,
+    device: undefined,
+    minutely: undefined,
     daily: undefined,
     monthly: undefined,
   },
   errors: {
-    recent: undefined,
+    device: undefined,
+    minutely: undefined,
     daily: undefined,
     monthly: undefined,
   },
@@ -61,8 +64,10 @@ export default function reducer(state=initialState, action) {
           [reportType]: timestamp,
         }
       };
-      newState = updateDailyWithRecent(newState);
-      newState = updateMonthlyWithDaily(newState);
+      if (reportType !== 'device') {
+        newState = updateDailyWithMinutely(newState);
+        newState = updateMonthlyWithDaily(newState);
+      }
       return newState;
     }
     case FETCH_DATA_FAILURE: {
@@ -84,7 +89,7 @@ export default function reducer(state=initialState, action) {
 function fetchReport(reportType) {
   const params = {
     type: reportType,
-    device_id: deviceId,
+    site_id: siteId,
     timezone: reportingTimezone,
   };
   const encodedParams = Object.keys(params).map(
@@ -108,26 +113,26 @@ export function fetchData(reportType) {
 
 export function refreshAll() {
   return function(dispatch) {
-    dispatch(fetchData('recent'));
-    // dispatch(fetchData('hourly'));
+    dispatch(fetchData('minutely'));
     dispatch(fetchData('daily'));
     dispatch(fetchData('monthly'));
+    dispatch(fetchData('device'));
   };
 }
 
 
 const REPORTS = {
-  recent: {
-    timestampField: 'time',
-    timestampFormat: 'YYYY-MM-DD HH:mm:ssZ',
+  device: {
+    labelFormat: 'YYYY-MM-DD HH:mm:ssZ',
+  },
+  minutely: {
+    labelFormat: 'YYYY-MM-DD HH:mm:ssZ',
   },
   daily: {
-    timestampField: 'date',
-    timestampFormat: 'YYYY-MM-DD',
+    labelFormat: 'YYYY-MM-DD',
   },
   monthly: {
-    timestampField: 'month',
-    timestampFormat: 'YYYY-MM',
+    labelFormat: 'YYYY-MM',
   },
 };
 
@@ -135,15 +140,15 @@ export const VALID_REPORT_TYPES = Object.keys(REPORTS);
 
 function processReportData(reportType, data) {
   // adds parsed moment timestamp for start of period
-  // adds usageGals calculated from usage_cuft
+  // adds usageGals calculated from usage_liters
   // converts array to object keyed by (string) time field
-  const {timestampField, timestampFormat} = REPORTS[reportType];
+  const {labelFormat} = REPORTS[reportType];
   const augmentedData = data.map((row) => {
-    const timestamp = moment(row[timestampField], timestampFormat, /*strict=*/true);
-    const usageGals = row.usage_cuft * GALLONS_PER_CUFT;
+    const timestamp = moment(row.label, labelFormat, /*strict=*/true);
+    const usageGals = row.usage_liters * GALLONS_PER_LITER;
     return {...row, timestamp, usageGals};
   });
-  return keyBy(augmentedData, timestampField);
+  return keyBy(augmentedData, 'label');
 }
 
 
@@ -153,25 +158,25 @@ function synthesizeReportData(fromData, fromType, toType) {
   // toType must be larger than toType (monthly > daily > recent)
   // result is object in same format as would be returned by processReportData(toType, serverResponse)
 
-  const {timestampField: fromTimestampField} = REPORTS[fromType];
-  const {timestampField: toTimestampField, timestampFormat: toTimestampFormat} = REPORTS[toType];
+  const {labelFormat: fromLabelFormat} = REPORTS[fromType];
+  const {labelFormat: toLabelFormat} = REPORTS[toType];
 
-  // This relies on toTimestampField being a prefix of fromTypestampField
-  const toTimestampLength = toTimestampFormat.length;
-  const groupedByToTimestamp = groupBy(fromData,
-      row => row[fromTimestampField].slice(0, toTimestampLength));
-  const result = mapObject(groupedByToTimestamp,
-    (fromRows, toTimestamp) => fromRows.reduce((toRow, row) => {
-      toRow.num_readings += (row.num_readings || 1);
-      toRow.usage_cuft += row.usage_cuft;
-      toRow.usageGals = toRow.usage_cuft * GALLONS_PER_CUFT; // (adding usageGals accumulates errors; always recalc)
+  // This relies on to.label being a prefix of from.label
+  const toLabelLength = toLabelFormat.length;
+  if (fromLabelFormat.length <= toLabelLength) {
+    throw new Error(`Cannot synthesize ${toType} from ${fromType}`);
+  }
+
+  const groupedByToLabel = groupBy(fromData, row => row.label.slice(0, toLabelLength));
+  const result = mapObject(groupedByToLabel,
+    (fromRows, toLabel) => fromRows.reduce((toRow, row) => {
+      toRow.usage_liters += row.usage_liters;
+      toRow.usageGals = toRow.usage_liters * GALLONS_PER_LITER; // (adding usageGals accumulates errors; always recalc)
       return toRow;
     }, { // initial toRow:
-      [toTimestampField]: toTimestamp,
-      timestamp: moment(toTimestamp, toTimestampFormat, /*strict=*/true),
-      num_readings: 0,
-      // last_reading_cuft: ???
-      usage_cuft: 0,
+      label: toLabel,
+      timestamp: moment(toLabel, toLabelFormat, /*strict=*/true),
+      usage_liters: 0,
       usageGals: 0,
     }));
   return result;
@@ -191,7 +196,7 @@ function mergeReportData(origData, mergeData) {
 
   const toMerge = filterObject(mergeData, (row, key) => (
     !origData.hasOwnProperty(key)
-    || _definitelyGreaterThan(row.usage_cuft, origData[key].usage_cuft)
+    || _definitelyGreaterThan(row.usage_liters, origData[key].usage_liters)
   ));
   if (size(toMerge) > 0) {
     return {
@@ -204,9 +209,9 @@ function mergeReportData(origData, mergeData) {
 }
 
 
-function updateDailyWithRecent(state) {
+function updateDailyWithMinutely(state) {
   const {daily, recent} = state;
-  const synthesizedDaily = synthesizeReportData(recent, 'recent', 'daily');
+  const synthesizedDaily = synthesizeReportData(recent, 'minutely', 'daily');
   const mergedDaily = mergeReportData(daily, synthesizedDaily);
   if (mergedDaily !== daily) {
     return {...state, daily: mergedDaily};
@@ -238,7 +243,7 @@ function selectData(state, type, range=undefined) {
   let result;
   if (range) {
     // lodash filter iterates object values, returns Array;
-    // FUTURE: use string filtering (timestampField) to avoid timezone issues
+    // FUTURE: use string filtering (on label field) to avoid timezone issues
     //    (filter predicate is called with (value, key, object))
     result = filter(data[type], row => range.contains(row.timestamp));
   } else {
@@ -247,8 +252,12 @@ function selectData(state, type, range=undefined) {
   return result;
 }
 
-export function selectRecentData(state, range=undefined) {
-  return selectData(state, 'recent', range);
+export function selectDeviceData(state, range=undefined) {
+  return selectData(state, 'device', range);
+}
+
+export function selectMinutelyData(state, range=undefined) {
+  return selectData(state, 'minutely', range);
 }
 
 export function selectDailyData(state, range=undefined) {
