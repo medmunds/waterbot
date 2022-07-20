@@ -26,7 +26,7 @@ export default function App() {
       </main>
       <PageFooter>
         <div>All times are {reportingTimezone}</div>
-        <div>About <a href="http://www.permaculture-sf.org/">Permaculture San Francisco</a></div>
+        <div>About the <a href="https://www.permaculture-sf.org/garden">18th &amp; RI Permaculture Garden</a></div>
         <div><a href="https://github.com/medmunds/waterbot">Waterbot</a> info &amp; code</div>
       </PageFooter>
     </div>
