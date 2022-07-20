@@ -11,7 +11,7 @@ export default function Section({
   children,
   ...props
 }) {
-  const classes = `Section ${className}`;
+  const classes = `Section ${className} ${chart ? 'Section_withChart' : 'Section_noChart'}`;
   return (
     <section className={classes} {...props}>
       <h2 className="Section--heading">

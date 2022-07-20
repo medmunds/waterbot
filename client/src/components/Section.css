@@ -60,11 +60,11 @@
     flex: 1 0 100%;
   }
 
-  .Section--left {
+  .Section_withChart .Section--left {
     flex: 0 0 240px;
     flex-flow: column nowrap;
   }
-  .Section--left > * {
+  .Section_withChart .Section--left > * {
     width: auto;
   }
 

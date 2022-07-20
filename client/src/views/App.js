@@ -5,7 +5,7 @@ import DataLoadingErrors from "./DataLoadingErrors";
 import PastMonth from './PastMonth';
 import PastYear from './PastYear';
 import NetworkIndicator from "./NetworkIndicator";
-import RecentActivity from './RecentActivity';
+import {RecentActivity, DeviceStatus} from './RecentActivity';
 
 import {reportingTimezone} from "../config";
 
@@ -23,6 +23,7 @@ export default function App() {
         <PastMonth/>
         <PastYear/>
         <RecentActivity/>
+        <DeviceStatus/>
       </main>
       <PageFooter>
         <div>All times are {reportingTimezone}</div>

@@ -91,10 +91,10 @@ function ScorecardAndSparkline({scorecard, sparkline}) {
 
 
 //
-// CurrentBattery
+// Device Battery
 //
 
-const selectCurrentBattery = makeDeviceSparklineSelector('battery_pct', {
+const selectCurrentBatteryCharge = makeDeviceSparklineSelector('battery_pct', {
   scorecard: {
     title: "Battery charge",
     fractionDigits: 1,
@@ -105,11 +105,24 @@ const selectCurrentBattery = makeDeviceSparklineSelector('battery_pct', {
   },
 });
 
-export const CurrentBattery = connect(selectCurrentBattery)(ScorecardAndSparkline);
+export const BatteryCharge = connect(selectCurrentBatteryCharge)(ScorecardAndSparkline);
+
+const selectCurrentBatteryVoltage = makeDeviceSparklineSelector('battery_v', {
+  scorecard: {
+    title: "Battery power",
+    fractionDigits: 1,
+    suffix: " volts",
+  },
+  sparkline: {
+    yDomain: [0, 4.2],
+  },
+});
+
+export const BatteryVoltage = connect(selectCurrentBatteryVoltage)(ScorecardAndSparkline);
 
 
 //
-// CurrentWiFi
+// Device Wi-Fi
 //
 
 const selectCurrentWiFiStrength = makeDeviceSparklineSelector('wifi_strength_pct', {
@@ -123,7 +136,7 @@ const selectCurrentWiFiStrength = makeDeviceSparklineSelector('wifi_strength_pct
   },
 });
 
-export const CurrentWiFiStrength = connect(selectCurrentWiFiStrength)(ScorecardAndSparkline);
+export const WiFiStrength = connect(selectCurrentWiFiStrength)(ScorecardAndSparkline);
 
 const selectCurrentWiFiQuality = makeDeviceSparklineSelector('wifi_quality_pct', {
   scorecard: {
@@ -136,7 +149,38 @@ const selectCurrentWiFiQuality = makeDeviceSparklineSelector('wifi_quality_pct',
   },
 });
 
-export const CurrentWiFiQuality = connect(selectCurrentWiFiQuality)(ScorecardAndSparkline);
+export const WiFiQuality = connect(selectCurrentWiFiQuality)(ScorecardAndSparkline);
+
+
+//
+// Device Connectivity
+//
+
+const selectCurrentPublishDelay = makeDeviceSparklineSelector('publish_sec', {
+  scorecard: {
+    title: "Publish delay",
+    fractionDigits: 0,
+    suffix: " seconds",
+  },
+  sparkline: {
+    yDomain: [0, 20],
+  },
+});
+
+export const PublishDelay = connect(selectCurrentPublishDelay)(ScorecardAndSparkline);
+
+const selectCurrentDeliveryDelay = makeDeviceSparklineSelector('delivery_sec', {
+  scorecard: {
+    title: "Delivery delay",
+    fractionDigits: 0,
+    suffix: " seconds",
+  },
+  sparkline: {
+    yDomain: [0, 20],
+  },
+});
+
+export const DeliveryDelay = connect(selectCurrentDeliveryDelay)(ScorecardAndSparkline);
 
 
 //
@@ -221,7 +265,7 @@ export const RecentScorecard = connect(selectRecentScorecard)(Scorecard);
 // RecentActivity view
 //
 
-export default function RecentActivity() {
+export function RecentActivity() {
   return (
     <Section
       title="Recent activity"
@@ -229,9 +273,21 @@ export default function RecentActivity() {
     >
       <RecentScorecard/>
       <CurrentMeter/>
-      <CurrentBattery/>
-      <CurrentWiFiStrength/>
-      <CurrentWiFiQuality/>
     </Section>
   );
+}
+
+export function DeviceStatus() {
+  return (
+    <Section
+      title="Waterbot status"
+    >
+      <BatteryCharge/>
+      <BatteryVoltage/>
+      <WiFiStrength/>
+      <WiFiQuality/>
+      <PublishDelay/>
+      <DeliveryDelay/>
+    </Section>
+  )
 }
