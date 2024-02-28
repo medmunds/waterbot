@@ -10,8 +10,8 @@ export function IndeterminateProgress({
   ...props
 }) {
   const classes = [
-    "Progress",
     "mdc-linear-progress",
+    "mdc-linear-progress--animation-ready",
     "mdc-linear-progress--indeterminate",
     active ? "mdc-linear-progress--open" : "mdc-linear-progress--closed",
     className,

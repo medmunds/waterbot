@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useEffect} from 'react';
 import PageFooter from "../components/PageFooter";
 import PageTitle from "../components/PageTitle";
 import DataLoadingErrors from "./DataLoadingErrors";
@@ -10,7 +10,8 @@ import {RecentActivity, DeviceStatus} from './RecentActivity';
 import {reportingTimezone} from "../config";
 
 
-export default function App() {
+export default function App({onRefresh}) {
+  useEffect(onRefresh);
   return (
     <div>
       <NetworkIndicator/>
