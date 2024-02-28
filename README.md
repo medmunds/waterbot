@@ -103,6 +103,3 @@ The client is (currently) a create-react-app project.
 Build it with `yarn build`.
 
 The resulting build is a static site and can be hosted just about anywhere.
-(We're currently using [Netlify][netlify] for super-simple continuous deployment and easy https.)
-
-[netlify]: https://www.netlify.com/

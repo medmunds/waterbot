@@ -1,0 +1,54 @@
+name: "client"
+
+on:
+  push:
+    paths:
+      - "client/**"
+      - ".github/workflows/client.yaml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: client
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: client
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - name: "install"
+        run: yarn install --frozen-lockfile
+      - name: "test"
+        run: yarn test
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: client
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - name: "install"
+        run: yarn install --frozen-lockfile
+      - name: "build"
+        run: yarn build
+      # uses: ryand56/r2-upload-action@1.2.3
+      - uses: ryand56/r2-upload-action@de3eabc2e3137ce07bc3805af441df55f535c64b
+        with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          # r2-upload-action doesn't respect working-directory?
+          source-dir: client/build
+          destination-dir: ./
+          output-file-url: 'false'
