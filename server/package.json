@@ -1,14 +1,14 @@
 {
   "name": "waterbot",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Waterbot Google Cloud Functions",
   "main": "build/index.js",
   "scripts": {
     "build": "tsc",
     "gcp-build": "tsc",
     "test": "jest",
-    "deploy-capture": "gcloud functions deploy dataCapture --stage-bucket waterbot --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs16",
-    "deploy-report": "gcloud functions deploy report --stage-bucket waterbot --trigger-http --runtime nodejs16",
+    "deploy-capture": "gcloud functions deploy dataCapture --trigger-event providers/cloud.pubsub/eventTypes/topic.publish --trigger-resource waterbot-data --runtime nodejs20",
+    "deploy-report": "gcloud functions deploy report --trigger-http --runtime nodejs20",
     "logs": "gcloud functions logs read --limit 50"
   },
   "author": "Mike Edmunds",
